@@ -9,7 +9,7 @@ import google.generativeai as genai
 
 class Google_API:
     def __init__(self):
-        genai.configure(api_key='AIzaSyCptM2l3SVH6ZBbsST_2m_haTIG-pCslyc')
+        genai.configure(api_key='')
         self.gemini_model = genai.GenerativeModel("gemini-1.5-flash")
         self.prompt = "In the given voice transcript, identify what the object is that the user wants. Return only the object in lowercase and do not include any whitespaces, punctuation, or new. Here is the voice transcript: "
 
