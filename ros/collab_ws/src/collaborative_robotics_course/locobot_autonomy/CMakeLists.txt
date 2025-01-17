@@ -43,24 +43,12 @@ find_package(Eigen3 REQUIRED)
 find_package(la_msgs REQUIRED)
 
 
-add_executable(visual_block_perception_srv src/visual_block_perception_srv.cpp)
-ament_target_dependencies(visual_block_perception_srv rclcpp Eigen geometry_msgs tf2_eigen tf2_ros tf2 tf2_geometry_msgs OpenCV image_transport cv_bridge image_geometry visualization_msgs std_msgs la_msgs)
-
-
-install(TARGETS 
-  visual_block_perception_srv
-  DESTINATION lib/${PROJECT_NAME})
-
-
-
-
-
-
 ament_python_install_package(${PROJECT_NAME})
 
 # Install Python executables
 install(PROGRAMS
   locobot_autonomy/move_A_to_B_py.py
+  locobot_autonomy/simple_control.py
   locobot_autonomy/move_locobot_base_action_server.py
   DESTINATION lib/${PROJECT_NAME}
 )
