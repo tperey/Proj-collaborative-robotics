@@ -24,11 +24,18 @@ RUN cd /dev_ws && source /opt/ros/galactic/setup.bash && colcon build
 RUN sudo apt install ros-galactic-irobot-create-description
 RUN pip install modern_robotics
 
+RUN sudo apt-get install -y  ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions
+
+# install scipy
+RUN sudo apt install nano gedit -y
+
 RUN sudo apt install -y \
 ros-$ROS_DISTRO-gazebo-ros2-control \
 ros-$ROS_DISTRO-gazebo-ros2-control-demos \
 ros-$ROS_DISTRO-effort-controllers \
 ros-$ROS_DISTRO-joint-state-broadcaster
+
+RUN /usr/bin/python3 -m pip install scipy 
 
 COPY ./entrypoint.sh /
 ENTRYPOINT [ "/bin/bash", "-c", "/entrypoint.sh" ]
