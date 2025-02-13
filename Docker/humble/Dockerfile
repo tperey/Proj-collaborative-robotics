@@ -1,13 +1,14 @@
 FROM tiryoh/ros2-desktop-vnc:humble
 
 
-RUN sudo apt-get update && sudo apt-get install -yq lsb-release
+
+# install python3.10
 
 RUN mkdir -p /dev_ws/src && cd /dev_ws/src \
 	&& sudo rm -rf /etc/ros/rosdep/sources.list.d/20-default.list \
 	&& sudo rosdep init \
+	&& sudo apt update -y \
 	&& rosdep update --include-eol-distros \
-	&& sudo apt-get install -yq ros-humble-rtabmap-ros \
 	&& git clone https://github.com/Interbotix/interbotix_ros_core.git -b galactic --recurse-submodules \
 	&& git clone https://github.com/Interbotix/interbotix_ros_rovers.git -b humble \
 	&& git clone https://github.com/Interbotix/interbotix_ros_toolboxes.git -b humble \
@@ -28,15 +29,11 @@ RUN sudo apt-get install -y  ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-convers
 # install scipy
 RUN sudo apt install nano gedit -y
 
-RUN sudo apt install -y \
+RUN sudo apt update -y && sudo apt install -y \
 ros-$ROS_DISTRO-gazebo-ros2-control \
 ros-$ROS_DISTRO-gazebo-ros2-control-demos \
 ros-$ROS_DISTRO-effort-controllers \
 ros-$ROS_DISTRO-joint-state-broadcaster
 
-RUN /usr/bin/python3 -m pip install scipy 
-
-
 COPY ./entrypoint.sh /
 ENTRYPOINT [ "/bin/bash", "-c", "/entrypoint.sh" ]
-
