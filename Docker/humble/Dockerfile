@@ -8,19 +8,6 @@ RUN apt-get update && apt-get install -y \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update
 
-# Install Python 3.10 and pip
-# RUN apt-get install -y python3.10 python3.10-distutils
-
-# # Update alternatives to make Python 3.10 the default
-# RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 \
-#     && update-alternatives --set python3 /usr/bin/python3.10
-
-# # Install pip for Python 3.10 
-# RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3
-
-
-
-# install python3.10
 
 RUN mkdir -p /dev_ws/src && cd /dev_ws/src \
 	&& sudo rm -rf /etc/ros/rosdep/sources.list.d/20-default.list \
