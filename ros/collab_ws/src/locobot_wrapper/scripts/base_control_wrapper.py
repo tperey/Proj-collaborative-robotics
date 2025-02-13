@@ -46,9 +46,10 @@ class BaseWrapperNode(Node):
         self.get_logger().info(f"Received twist Message: {msg.linear.x}, {msg.linear.y}, {msg.linear.z}, {msg.angular.x}, {msg.angular.y}, {msg.angular.z}")
 
         if self.use_sim:
-            pass
+            # directly publish the twist message
+            self.twist.publisher(msg)
         else:
-            pass
+            # real world control
 
     def pose_callback(self, msg):
         # Log the received PoseStamped message
@@ -80,7 +81,7 @@ class BaseWrapperNode(Node):
             matrix[1,3] = msg.pose.position.y
             matrix[2,3] = msg.pose.position.z
 
-            self.locobot.arm.set_ee_pose_matrix(matrix,execute=True)
+            self.locobot.arm.set_ee_pose_matrix(matrix, execute=True)
 
     def goal_response_callback(self, future):
         goal_handle = future.result()
