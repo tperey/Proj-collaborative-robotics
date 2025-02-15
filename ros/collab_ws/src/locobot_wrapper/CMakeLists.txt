@@ -38,6 +38,7 @@ find_package(ament_cmake_python REQUIRED)
 install(PROGRAMS
     scripts/publish_robot_description_semantic.py
     scripts/arm_control_wrapper.py 
+    scripts/base_control_wrapper.py 
     scripts/move_gripper_action_server.py 
     DESTINATION lib/${PROJECT_NAME}
 )
