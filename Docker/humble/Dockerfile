@@ -38,7 +38,8 @@ RUN sudo apt update -y && sudo apt install -y \
 ros-$ROS_DISTRO-gazebo-ros2-control \
 ros-$ROS_DISTRO-gazebo-ros2-control-demos \
 ros-$ROS_DISTRO-effort-controllers \
-ros-$ROS_DISTRO-joint-state-broadcaster
+ros-$ROS_DISTRO-joint-state-broadcaster \
+ros-$ROS_DISTRO-topic-tools
 
 COPY ./entrypoint.sh /
 ENTRYPOINT [ "/bin/bash", "-c", "/entrypoint.sh" ]
