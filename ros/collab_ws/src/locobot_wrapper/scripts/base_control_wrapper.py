@@ -50,6 +50,7 @@ class BaseWrapperNode(Node):
             self.twist.publisher(msg)
         else:
             # real world control
+            pass
 
     def pose_callback(self, msg):
         # Log the received PoseStamped message

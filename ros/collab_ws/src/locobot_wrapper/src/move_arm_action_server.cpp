@@ -21,6 +21,10 @@ public:
       using namespace std::placeholders;
       printf("Server Started!\n");
 
+      // declare test parameter
+      this->declare_parameter("robot_description", "");
+      this->declare_parameter("robot_description_semantic", "");
+
       this->action_server_ = rclcpp_action::create_server<ActionMoveArm>(
         this,
         "movearm",
@@ -33,7 +37,22 @@ public:
       move_group_node = std::make_shared<rclcpp::Node>(
         "locobot_moveit",
         rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)
-      );      
+      );    
+
+      // auto parameter_list = this->list_parameters({}, 10); // Recursively list up to depth 10
+
+      // RCLCPP_INFO(this->get_logger(), "Listing all parameters:");
+      // for (const auto & param_name : parameter_list.names) {
+      //     auto param = this->get_parameter(param_name);
+      //     RCLCPP_INFO(this->get_logger(), "Parameter: %s = %s", param_name.c_str(), param.value_to_string().c_str());
+      // }
+
+      // moveit::planning_interface::MoveGroupInterface::Options testoptions("interbotix_arm", "robot_description", "locobot");
+
+      // // Create the MoveIt MoveGroup Interface
+      // using moveit::planning_interface::MoveGroupInterface;
+      // RCLCPP_INFO(this->get_logger(), "Created MoveGroupInterface");
+      // auto move_group_interface = MoveGroupInterface(this->move_group_node, testoptions);  
   }
 
 private:
@@ -66,7 +85,10 @@ private:
 
   void execute(const std::shared_ptr<GoalHandle> goal_handle)
   {
+
+    // print value of parameter
     RCLCPP_INFO(this->get_logger(), "Executing goal");
+
     rclcpp::Rate loop_rate(1);
     auto goal = goal_handle->get_goal();
     auto feedback = std::make_shared<ActionMoveArm::Feedback>();
@@ -75,17 +97,24 @@ private:
     // Create a ROS logger
     auto const logger = rclcpp::get_logger("locobot_moveit");
 
+    // create the moveit options
+    moveit::planning_interface::MoveGroupInterface::Options toptions("interbotix_arm", "robot_description");
+
     // Create the MoveIt MoveGroup Interface
     using moveit::planning_interface::MoveGroupInterface;
-    auto move_group_interface = MoveGroupInterface(this->move_group_node, "interbotix_arm");
+    RCLCPP_INFO(this->get_logger(), "Created MoveGroupInterface");
+    auto move_group_interface = MoveGroupInterface(this->move_group_node, toptions);
+
 
     // Set a target Pose
     geometry_msgs::msg::Pose target_pose;
+
     //position 
     target_pose.position.x = goal->pose[0];
     target_pose.position.y = goal->pose[1];
     target_pose.position.z = goal->pose[2];
-    //orientation
+
+    // orientation
     tf2::Quaternion q;
     float roll = (3.14159/180)*goal->pose[3];
     float pitch = (3.14159/180)*goal->pose[4];
