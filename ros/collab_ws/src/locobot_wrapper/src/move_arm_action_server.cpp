@@ -39,20 +39,6 @@ public:
         rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)
       );    
 
-      // auto parameter_list = this->list_parameters({}, 10); // Recursively list up to depth 10
-
-      // RCLCPP_INFO(this->get_logger(), "Listing all parameters:");
-      // for (const auto & param_name : parameter_list.names) {
-      //     auto param = this->get_parameter(param_name);
-      //     RCLCPP_INFO(this->get_logger(), "Parameter: %s = %s", param_name.c_str(), param.value_to_string().c_str());
-      // }
-
-      // moveit::planning_interface::MoveGroupInterface::Options testoptions("interbotix_arm", "robot_description", "locobot");
-
-      // // Create the MoveIt MoveGroup Interface
-      // using moveit::planning_interface::MoveGroupInterface;
-      // RCLCPP_INFO(this->get_logger(), "Created MoveGroupInterface");
-      // auto move_group_interface = MoveGroupInterface(this->move_group_node, testoptions);  
   }
 
 private:

@@ -7,6 +7,14 @@ from rclpy.qos import QoSProfile, QoSDurabilityPolicy
 
 class ParamPublisher(Node):
     def __init__(self):
+        """
+        This node is a bit of a hack because of Moveit2's issues. 
+
+        Moveit2 requires the robot_description_semantic parameter to be set, but you cannot
+        specify the namespace in which you can look for the parameter. This node takes the yaml
+        file params, loads it, and republishes it to the topic moveit looks for.
+
+        """
         super().__init__("param_publisher")
 
         # Declare and get the parameter

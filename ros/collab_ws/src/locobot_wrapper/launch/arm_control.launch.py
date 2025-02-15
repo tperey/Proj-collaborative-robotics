@@ -1,15 +1,28 @@
 #!/usr/bin/env python3
 
+import os
+
 import launch
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from ament_index_python.packages import get_package_prefix
+
 
 def generate_launch_description():
     # Declare launch arguments
-    param_file = '/home/ubuntu/Desktop/collaborative/ros/collab_ws/move.yaml'
+    package_name = 'locobot_wrapper'
+
+    package_prefix = get_package_prefix(package_name)
+
+    # Navigate back to 'src' instead of 'install'
+    workspace_src = os.path.abspath(os.path.join(package_prefix, "../../src"))
+    package_path = os.path.join(workspace_src, package_name)
+
+    param_file = os.path.join(package_path, 'config', 'publish_semantic.yaml')
+
     
     return LaunchDescription([
         DeclareLaunchArgument('use_sim', default_value='true', description='Whether to use simulation or not'),
@@ -33,7 +46,7 @@ def generate_launch_description():
             parameters=[{'use_sim': LaunchConfiguration('use_sim')}],
         ),
 
-        # publishing the semantic robot description
+        # publishing the semantic robot description (bit of a hack)
         Node(
             package='locobot_wrapper',
             executable='publish_robot_description_semantic.py',

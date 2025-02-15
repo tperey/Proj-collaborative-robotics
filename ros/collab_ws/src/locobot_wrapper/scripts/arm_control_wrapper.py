@@ -14,8 +14,6 @@ from std_msgs.msg import Bool
 class ArmWrapperNode(Node):
     def __init__(self):
         super().__init__('arm_wrapper_node')
-
-
          # Declare the parameter 'use_sim' with a default value of False
         self.declare_parameter('use_sim', False)
         
