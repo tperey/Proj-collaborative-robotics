@@ -41,5 +41,7 @@ ros-$ROS_DISTRO-effort-controllers \
 ros-$ROS_DISTRO-joint-state-broadcaster \
 ros-$ROS_DISTRO-topic-tools
 
+RUN pip install numpy==1.23.3
+
 COPY ./entrypoint.sh /
 ENTRYPOINT [ "/bin/bash", "-c", "/entrypoint.sh" ]
