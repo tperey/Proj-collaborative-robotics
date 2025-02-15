@@ -22,7 +22,6 @@ def generate_launch_description():
     package_path = os.path.join(workspace_src, package_name)
 
     param_file = os.path.join(package_path, 'config', 'publish_semantic.yaml')
-
     
     return LaunchDescription([
         DeclareLaunchArgument('use_sim', default_value='true', description='Whether to use simulation or not'),
@@ -70,5 +69,12 @@ def generate_launch_description():
             name='move_gripper_action_server',
             output='screen',
             condition=IfCondition(LaunchConfiguration('use_sim'))
-        )
+        ),
+        Node(
+            package="topic_tools",
+            executable="relay",
+            name="relay_node",
+            arguments=["/locobot/robot_description", "/robot_description"],
+            output="screen",
+        ),
     ])

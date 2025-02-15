@@ -36,8 +36,10 @@ class ParamPublisher(Node):
         self.msg.data = str(param_value)
 
     def timer_callback(self):
+        """
+        publish data to the topic
+        """
         self.publisher_.publish(self.msg)
-        self.get_logger().info(f"Published data!")
 
 def main(args=None):
     rclpy.init(args=args)
