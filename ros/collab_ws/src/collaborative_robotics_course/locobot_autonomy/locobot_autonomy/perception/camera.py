@@ -16,8 +16,8 @@ from geometry_msgs.msg import Point
 from nav_msgs.msg import Odometry
 
 from rclpy.qos import qos_profile_sensor_data, QoSProfile 
-from verbal import transcribe_audio  
-from find_center import find_center 
+from verbal import SpeechTranscriber
+from find_center import VisionObjectDetector
 
 #json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
 
@@ -34,12 +34,16 @@ class ScanApproachNode(Node):
         self.client = vision.ImageAnnotatorClient()
 
         self.mobile_base_vel_publisher = self.create_publisher(Twist,"/locobot/mobile_base/cmd_vel", 1)
+        self.target_publisher = self.create_publisher(Point, "/target_point", 10)
 
-        msg = Twist()
-        msg.angular.z = 0.5  # Set angular velocity (turn)
+        # msg = Twist()
+        # msg.angular.z = 0.5  # Set angular velocity (turn)
         # self.mobile_base_vel_publisher.publish(msg)
 
-        self.desiredObject = transcribe_audio(self)  #"Medicine"
+        self.speech = SpeechTranscriber()
+        self.obj_detect = VisionObjectDetector()
+
+        self.desiredObject = self.speech.transcribe_audio(self).lower()  #"Medicine"
 
         self.camera_subscription = self.create_subscription(
             Image,
@@ -62,10 +66,15 @@ class ScanApproachNode(Node):
         for object in objects:
             print("Detected object", object.name.lower())
             if object.name.lower() == self.desiredObject:
-                x_pixel, y_pixel = find_center(self,content2,object.name.lower())
-                msg = Twist()
-                msg.linear.x = 0.5  # Set linear velocity (forward)
+                x_pixel, y_pixel = self.obj_detect.find_center(self,content2,object.name.lower())
+                # msg = Twist()
+                # msg.linear.x = 0.5  # Set linear velocity (forward)
                 # self.mobile_base_vel_publisher.publish(msg)
+
+                target_point = Point()
+                target_point.x = x_pixel
+                target_point.y = y_pixel
+                self.target_publisher.publish(target_point)
                 return x_pixel, y_pixel 
                 break
         msg = Twist()
