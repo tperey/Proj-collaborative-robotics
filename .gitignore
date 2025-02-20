@@ -1,4 +1,6 @@
 ros/collab_ws/build
 ros/collab_ws/install
 ros/collab_ws/log
-
+build/
+install/
+log/
