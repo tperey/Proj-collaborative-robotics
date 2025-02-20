@@ -18,9 +18,9 @@ from PIL import Image as PILImage, ImageDraw, ImageFont
 import string 
 import re 
 
-data_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\data\data\VLM and Audio'
-json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = json_key_path
+# json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
+# json_key_path = '/home/locobot/Downloads/python-447906-51258c347833.json'
+# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = json_key_path
 
 class SpeechTranscriber:
     def __init__(self, language_code='en-US', sample_rate=16000):
@@ -53,11 +53,3 @@ class SpeechTranscriber:
         talk = self.client.recognize(config=config, audio=audio)
         transcript = [result.alternatives[0].transcript for result in talk.results]
         return transcript
-    
-test = SpeechTranscriber()
-
-audio_content1 = data_path + "/recorded_audio1.wav"
-with open(audio_content1, "rb") as audio_file:
-    audio_content1 = audio_file.read()
-transcription = test.transcribe_audio(audio_content1)
-print("Transcription:\n", transcription)

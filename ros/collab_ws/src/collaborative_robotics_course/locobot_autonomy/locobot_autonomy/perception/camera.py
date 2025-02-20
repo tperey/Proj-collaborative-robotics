@@ -28,8 +28,8 @@ class ScanApproachNode(Node):
     def __init__(self):
         super().__init__("scan_approach_node")
 
-        self.json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
-
+        # self.json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
+        self.json_key_path = '/home/locobot/Downloads/cs339r-448607-a4209bb69d63.json'
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.json_key_path
 
         self.bridge = CvBridge()
@@ -46,7 +46,8 @@ class ScanApproachNode(Node):
         self.speech = SpeechTranscriber()
         self.obj_detect = VisionObjectDetector()
 
-        self.desiredObject = self.speech.transcribe_audio(self).lower()  #"Medicine"
+        #self.desiredObject = self.speech.transcribe_audio(audio_content).lower()  #"Medicine"
+        self.desiredObject = "banana"
 
         self.camera_subscription = self.create_subscription(
             Image,
@@ -62,6 +63,7 @@ class ScanApproachNode(Node):
         success, encoded_image = cv2.imencode('.jpg', cv_ColorImage)
         content2 = encoded_image.tobytes()
         visionImage = vision.Image(content=content2)
+        self.get_logger().info(str(type(visionImage)))
         # Send the image to the API for object localization
         response = self.client.object_localization(image=visionImage)
         # Extract localized object annotations

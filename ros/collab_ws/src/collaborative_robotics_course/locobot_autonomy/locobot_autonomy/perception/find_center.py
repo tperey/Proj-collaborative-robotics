@@ -18,9 +18,9 @@ from PIL import Image as PILImage, ImageDraw, ImageFont
 import string 
 import re 
 
-data_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\data\data\VLM and Audio'
-json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = json_key_path
+# json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
+# json_key_path = '/home/locobot/Downloads/python-447906-51258c347833.json'
+# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = json_key_path
 
 class VisionObjectDetector:
     def __init__(self):
