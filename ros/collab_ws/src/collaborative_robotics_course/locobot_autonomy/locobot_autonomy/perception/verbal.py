@@ -15,7 +15,6 @@ from google.cloud import speech_v1 as speech
 #from google.colab import files
 from google.cloud import vision
 from PIL import Image as PILImage, ImageDraw, ImageFont
-from IPython.display import display
 import string 
 import re 
 
