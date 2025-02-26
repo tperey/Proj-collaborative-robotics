@@ -47,6 +47,8 @@ install(PROGRAMS
   locobot_autonomy/move_A_to_B_py.py
   locobot_autonomy/simple_control.py
   locobot_autonomy/move_locobot_base_action_server.py
+  locobot_autonomy/follow_traj_hw2.py
+  locobot_autonomy/test_arm_move.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
