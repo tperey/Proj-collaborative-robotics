@@ -105,14 +105,17 @@ class ArmWrapperNode(Node):
         
     def gripper_callback(self, msg):
         if self.use_sim:
-            goal_msg = MoveArm.Goal()
+            #goal_msg = MoveArm.Goal() # BASED ON LOOKING AT CODE, THIS SHOULD BE MoveGripper
+            goal_msg = MoveGripper.Goal()
             if msg.data:
 
                 goal_msg.command = 'open'
-                goal.duration = 3.0
+                #goal.duration = 3.0 # SHOULD BE GOAL_MSG
+                goal_msg.duration = 3.0
             else:
                 goal_msg.command = 'closed'
-                goal.duration = 3.0
+                #goal.duration = 3.0 # SHOULD BE GOAL_MSG
+                goal_msg.duration = 3.0
             self.send_gripper_future = self._gripper_client.send_goal_async(
                 goal_msg,
                 feedback_callback=self.feedback_callback

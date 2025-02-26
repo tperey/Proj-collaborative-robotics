@@ -17,7 +17,10 @@ import geometry_msgs
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Point
+
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Bool
+
 from nav_msgs.msg import Odometry
 from visualization_msgs.msg import Marker
 
@@ -59,11 +62,11 @@ class ObjectGrabber(Node):
         # self.target_pose = target_pose
 
         #Define the publishers
-        self.arm_publisher = self.create_publisher(PoseStamped, "/arm_pose", 10)
-        # Arbitrarily queued 10
+        self.arm_publisher = self.create_publisher(PoseStamped, "/arm_pose", 10) # Arbitrarily queued 10
+        self.gripper_publisher = self.create_publisher(Bool, '/gripper', 10)
         self.get_logger().info('ObjectGrabber node has started')
 
-        # BASIC TEST - use timer to move in a square
+        # BASIC TEST - use timer
         self.square_timer = self.create_timer(5.0, self.square_callback)
 
     def square_callback(self):
@@ -85,10 +88,18 @@ class ObjectGrabber(Node):
         desired_pose_msg.pose.position.x = xd
         desired_pose_msg.pose.position.y = yd
         desired_pose_msg.pose.position.z = zd
+
+        """ FOR STRAIGHT """
+        # desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
+        # desired_pose_msg.pose.orientation.y = 0.0
+        # desired_pose_msg.pose.orientation.z = 0.0
+        # desired_pose_msg.pose.orientation.w = 1.0
+
+        """ FOR GRABBING FROM TOP (90º ROTATION ABOUT Y AXIS, SO ARM FACES DOWN)"""
         desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
-        desired_pose_msg.pose.orientation.y = 0.0
+        desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
         desired_pose_msg.pose.orientation.z = 0.0
-        desired_pose_msg.pose.orientation.w = 1.0
+        desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
 
         self.arm_publisher.publish(desired_pose_msg) # Publish pose
 
@@ -100,8 +111,21 @@ class ObjectGrabber(Node):
         # Log
         self.get_logger().info(f"Published pose of: {xd}, {yd}, {zd}")
 
-        # WAIT to Reset timer
-        input("Press any key to continue and start timer for next command: ")
+        """ GRIPPER DOESN'T WORK IN SIM """
+        # # Close gripper
+        # input("Press any key to CLOSE GRIPPER: ")
+        # gripper_msg = Bool()
+        # gripper_msg.data = False # CLOSE gripper
+        # self.gripper_publisher.publish(gripper_msg)
+        # self.get_logger().info(f"Closing gripper...")
+    
+        # # WAIT to Reset timer
+        # input("Press any key to OPEN GRIPPER, then start timer for next command: ")
+        # gripper_msg.data = True # OPEN gripper
+        # self.gripper_publisher.publish(gripper_msg)
+        # self.get_logger().info(f"OPENING gripper...")
+
+        self.get_logger().info(f"Running timer!")
         self.square_timer.reset()
 
 def main(args=None):
