@@ -47,6 +47,8 @@ install(PROGRAMS
   locobot_autonomy/move_A_to_B_py.py
   locobot_autonomy/simple_control.py
   locobot_autonomy/move_locobot_base_action_server.py
+  locobot_autonomy/localization.py
+  locobot_autonomy/perception/find_center.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

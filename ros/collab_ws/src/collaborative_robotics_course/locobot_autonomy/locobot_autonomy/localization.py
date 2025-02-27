@@ -1,34 +1,28 @@
+#!/usr/bin/env python3
 # Object Localization (Given pixel coordinates, localize into robot frame)
 
 # /locobot/camera/camera_info
 # height, width, d (distortion. k1, k2, t1, t2, k3), K
-
-# Frame transforms
-# look up on google: ros2 python lookup_transform
-# this gives translation + rotation in quarternions, so change this to a rotation matrix format
-# locobot/base_link, locobot/camera_depth_link
-# -> extrinsics [R|t] (camera->world)
 
 import numpy as np
 import rclpy
 from rclpy.node import Node
 import tf2_ros
 from geometry_msgs.msg import TransformStamped, Point
-from tf_transformations import quaternion_matrix
 from sensor_msgs.msg import CameraInfo
 
-class TFListener(Node):
+class Localizer(Node):
     def __init__(self):
-        super().__init__('tf_listener')
+        super().__init__('localizer')
         
-        # TF 버퍼와 리스너 생성
+        # create TF buffer and listener
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         self.goal_publisher = self.create_publisher(Point, "/project_goal", 10)
 
         # Get target point in image coordinates
-        self.img_sub = self.create_subscription(Point, "/target_point", self.img_callback, 10))
+        self.img_sub = self.create_subscription(Point, "/target_point", self.img_callback, 10)
 
         # camera_callback will store the camera matrix K into self.K
         # self.K will start as None; check that it is not None before calculating things
@@ -38,6 +32,8 @@ class TFListener(Node):
             self.camera_callback,
             10)
         self.K = None
+
+        self.get_logger().info('Localizer node has started')
     
     def img_callback(self, point):
         u = point.x
@@ -46,7 +42,7 @@ class TFListener(Node):
 
         transform_mat = self.get_transformation()
 
-        if self.K:
+        if self.K is not None:
             goal = pixel_to_robot_coords(u, v, depth, self.K, transform_mat)
             goal_point = Point()
             goal_point.x = goal[0]
@@ -58,39 +54,40 @@ class TFListener(Node):
             self.get_logger().info(f'K has not yet been initialized')
     
     def camera_callback(self, camera_info):
-        self.K = camera_info.k
+        self.K = np.array(camera_info.k).reshape((3,3))
 
     def get_transformation(self):
         """
-        TF 데이터를 가져와 변환 행렬을 계산하는 메서드
+        Gets transformation data and calculates the transformation matrix
         """
         try:
-            # base_link에서 camera_frame으로의 변환 데이터 조회
+            # Get transformation data from base_link to camera_frame
             trans: TransformStamped = self.tf_buffer.lookup_transform(
-                'base_link', 'camera_frame', rclpy.time.Time())
+                'locobot/base_link', 'locobot/camera_depth_link', rclpy.time.Time())
 
             # 이동(translation) 정보 추출
-            translation = [trans.transform.translation.x,
+            translation = np.array([trans.transform.translation.x,
                            trans.transform.translation.y,
-                           trans.transform.translation.z]
+                           trans.transform.translation.z]).reshape((3, 1))
             
-            # 회전(rotation) 정보 추출 (쿼터니언)
-            rotation = [trans.transform.rotation.x,
+            # Get rotation info (quaternions)
+            quaternion = np.array([trans.transform.rotation.x,
                         trans.transform.rotation.y,
                         trans.transform.rotation.z,
-                        trans.transform.rotation.w]
+                        trans.transform.rotation.w])
 
             # Create transformation matrix
-            transform_mat = quaternion_matrix(rotation)
-            transform_mat[:3,3] = translation
+            rotation = quaternion_to_rotation_matrix(quaternion)
+            transform_mat = np.concatenate((rotation, translation), axis=1)
 
-            # 변환 행렬 출력
+            # Print transformation matrix
             self.get_logger().info(f'Transformation Matrix:\n{transform_mat}')
 
             return transform_mat
 
-        except tf2_ros.LookupException:
+        except tf2_ros.LookupException as e:
             self.get_logger().error('Transform not available.')
+            self.get_logger().error(f'{e}')
         except tf2_ros.ConnectivityException:
             self.get_logger().error('Connectivity issue.')
         except tf2_ros.ExtrapolationException:
@@ -105,16 +102,45 @@ def pixel_to_robot_coords(u, v, depth, K: np.ndarray, extrinsics: np.ndarray):
 
     return np.dot(extrinsics, cam_coord)
 
+def quaternion_to_rotation_matrix(quaternion):
+    """
+    Converts a quaternion to a rotation matrix.
+
+    Args:
+        quaternion (np.array): A numpy array of shape (4,) representing the quaternion in the form [w, x, y, z].
+
+    Returns:
+        np.array: A 3x3 numpy array representing the rotation matrix.
+    """
+    w, x, y, z = quaternion
+    
+    # Compute the rotation matrix elements
+    r00 = 1 - 2*y**2 - 2*z**2
+    r01 = 2*x*y - 2*w*z
+    r02 = 2*x*z + 2*w*y
+    r10 = 2*x*y + 2*w*z
+    r11 = 1 - 2*x**2 - 2*z**2
+    r12 = 2*y*z - 2*w*x
+    r20 = 2*x*z - 2*w*y
+    r21 = 2*y*z + 2*w*x
+    r22 = 1 - 2*x**2 - 2*y**2
+    
+    # Construct the rotation matrix
+    rotation_matrix = np.array([[r00, r01, r02],
+                                [r10, r11, r12],
+                                [r20, r21, r22]])
+    return rotation_matrix
+
 
 def main():
-    # ROS 2 초기화
+    # initialize ROS 2
     rclpy.init()
     
-    # TFListener 노드 생성
-    node = TFListener()
+    # Create node
+    node = Localizer()
     rclpy.spin(node)
     
-    # 노드 종료
+    # Destroy node
     node.destroy_node()
     rclpy.shutdown()
 
