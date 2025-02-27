@@ -67,7 +67,7 @@ class ObjectGrabber(Node):
         self.get_logger().info('ObjectGrabber node has started')
 
         # BASIC TEST - use timer
-        self.square_timer = self.create_timer(5.0, self.square_callback)
+        self.square_timer = self.create_timer(1.0, self.square_callback)
 
     def square_callback(self):
         global counter
@@ -80,7 +80,7 @@ class ObjectGrabber(Node):
 
         """ IF ENTERING """
         xd = float(input("Enter x in m: "))
-        yd = 0.0
+        yd = float(input("Enter y in m: "))
         zd = float(input("Enter z in m: "))
 
         # Publish
@@ -112,18 +112,18 @@ class ObjectGrabber(Node):
         self.get_logger().info(f"Published pose of: {xd}, {yd}, {zd}")
 
         """ GRIPPER DOESN'T WORK IN SIM """
-        # # Close gripper
-        # input("Press any key to CLOSE GRIPPER: ")
-        # gripper_msg = Bool()
-        # gripper_msg.data = False # CLOSE gripper
-        # self.gripper_publisher.publish(gripper_msg)
-        # self.get_logger().info(f"Closing gripper...")
+        # Close gripper
+        input("Press any key to CLOSE GRIPPER: ")
+        gripper_msg = Bool()
+        gripper_msg.data = False # CLOSE gripper
+        self.gripper_publisher.publish(gripper_msg)
+        self.get_logger().info(f"Closing gripper...")
     
-        # # WAIT to Reset timer
-        # input("Press any key to OPEN GRIPPER, then start timer for next command: ")
-        # gripper_msg.data = True # OPEN gripper
-        # self.gripper_publisher.publish(gripper_msg)
-        # self.get_logger().info(f"OPENING gripper...")
+        # WAIT to Reset timer
+        input("Press any key to OPEN GRIPPER, then start timer for next command: ")
+        gripper_msg.data = True # OPEN gripper
+        self.gripper_publisher.publish(gripper_msg)
+        self.get_logger().info(f"OPENING gripper...")
 
         self.get_logger().info(f"Running timer!")
         self.square_timer.reset()
