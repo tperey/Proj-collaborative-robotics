@@ -137,7 +137,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     #instantiate the class
-    cls_obj = ObjectGrabber() #instantiate object of the class (to call and use the functions)
+    cls_obj = ManipulationNode() #instantiate object of the class (to call and use the functions)
 
     rclpy.spin(cls_obj)
 
