@@ -79,7 +79,7 @@ class ArmWrapperNode(Node):
             self.get_logger().info(f"Real behavior: Moving hardware with Pose {msg.pose}")
             r = R.from_quat([msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w])
             rot_mat = r.as_matrix()
-            matrix = np.ones((4,4))
+            matrix = np.eye(4)
             matrix[0:3, 0:3] = rot_mat
             matrix[0,3] = msg.pose.position.x
             matrix[1,3] = msg.pose.position.y

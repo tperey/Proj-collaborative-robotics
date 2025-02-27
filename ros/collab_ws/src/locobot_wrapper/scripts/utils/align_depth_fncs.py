@@ -8,26 +8,23 @@ copyright Armlab@Stanford
 
 import numpy as np
 import cv2
+from typing import Tuple
 
 
-def convert_intrinsics(img, old_intrinsics = (360.01, 360.01, 243.87, 137.92), new_intrinsics = (1297.67, 1298.63, 620.91, 238.28), new_size=(1280, 720)):
+def convert_intrinsics(img, K_old, K_new, new_size=(1280, 720)):
     """
     Convert a set of images to a different set of camera intrinsics.
     Parameters:
     - images: List of input images.
-    - old_intrinsics: Tuple (fx, fy, cx, cy) of the old camera intrinsics.
-    - new_intrinsics: Tuple (fx, fy, cx, cy) of the new camera intrinsics.
+    - K_old: Matrix of the old camera intrinsics.
+    - K_new: Matrix of the new camera intrinsics.
     - new_size: Tuple (width, height) defining the size of the output images.
     Returns:
     - List of images converted to the new camera intrinsics.
     """
-    old_fx, old_fy, old_cx, old_cy = old_intrinsics
-    new_fx, new_fy, new_cx, new_cy = new_intrinsics
+
     width, height = new_size
     
-    # Constructing the old and new intrinsics matrices
-    K_old = np.array([[old_fx, 0, old_cx], [0, old_fy, old_cy], [0, 0, 1]])
-    K_new = np.array([[new_fx, 0, new_cx], [0, new_fy, new_cy], [0, 0, 1]])
     # Compute the inverse of the new intrinsics matrix for remapping
     K_new_inv = np.linalg.inv(K_new)
     
@@ -77,7 +74,7 @@ def compute_homography(K, R, t):
     return H
 
 
-def align_depth(depth: np.ndarray, depth_K: np.ndarray, rgb: np.ndarray, rgb_K: np.ndarray, cam2cam_transform: np.ndarray) -> np.ndarray:
+def align_depth(depth: np.ndarray, depth_K: Tuple[float,float,float,float], rgb: np.ndarray, rgb_K: Tuple[float,float,float,float], cam2cam_transform: np.ndarray) -> np.ndarray:
     """
     align depth image to the rgb image.
 
@@ -89,11 +86,18 @@ def align_depth(depth: np.ndarray, depth_K: np.ndarray, rgb: np.ndarray, rgb_K: 
     :return: aligned depth image
     """
     
+    old_fx, old_fy, old_cx, old_cy = depth_K
+    new_fx, new_fy, new_cx, new_cy = rgb_K
+    
+    # Constructing the old and new intrinsics matrices
+    K_old = np.array([[old_fx, 0, old_cx], [0, old_fy, old_cy], [0, 0, 1]])
+    K_new = np.array([[new_fx, 0, new_cx], [0, new_fy, new_cy], [0, 0, 1]])
+
     # conver the instrinsics of the depth camera to the intrinsics of the rgb camera.
-    depth = convert_intrinsics(depth, new_size=(rgb.shape[1], rgb.shape[0]), new_intrinsics=rgb_K, old_intrinsics=depth_K)
+    depth = convert_intrinsics(depth, K_old, K_new, new_size=(rgb.shape[1], rgb.shape[0]))
 
     # warp the depth image to the rgb image with the transformation matrix from camera to camera.
-    depth = warp_image(depth, rgb_K, cam2cam_transform[:3, :3], cam2cam_transform[:3, 3])        
+    depth = warp_image(depth, K_new, cam2cam_transform[:3, :3], cam2cam_transform[:3, 3])        
     return depth
 
 
@@ -109,4 +113,4 @@ cam2cam_transform = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0
 aligned_depth = align_depth(depth, depth_K, rgb, rgb_K, cam2cam_transform)
 cv2.imwrite("aligned_depth.png", aligned_depth)
 
-"""                                                          
+"""                                                           
