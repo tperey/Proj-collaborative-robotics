@@ -21,6 +21,7 @@ from nav_msgs.msg import Odometry
 from rclpy.qos import qos_profile_sensor_data, QoSProfile 
 from verbal import SpeechTranscriber
 from find_center import VisionObjectDetector
+import align_depth
 
 #json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
 
@@ -33,7 +34,7 @@ class ScanApproachNode(Node):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.json_key_path
 
         self.bridge = CvBridge()
-
+    
         self.client = vision.ImageAnnotatorClient()
 
         self.mobile_base_vel_publisher = self.create_publisher(Twist,"/locobot/mobile_base/cmd_vel", 1)
@@ -56,9 +57,19 @@ class ScanApproachNode(Node):
             qos_profile=qos_profile_sensor_data  # Best effort QoS profile for sensor data [usual would be queue size: 1]
             ) #this says: listen to the image_raw message, of type Image, and send that to the callback function specified
         self.camera_subscription  # prevent unused variable warning
+        self.depth_subscription = self.create_subscription(
+            Image,
+            '/camera/aligned_depth_to_color/image_raw', 
+            self.ScanImage,
+            qos_profile=qos_profile_sensor_data
+            )
+        self.depth_subscription
     
     def ScanImage(self,imageMessage):
         cv_ColorImage = self.bridge.imgmsg_to_cv2(imageMessage, desired_encoding='passthrough')
+        depth_image = self.bridge.imgmg_to_cv2(imageMessage, desired_encoding='bgr8')
+
+        # convert to depth
         # May need to convert image to bytes first with
         success, encoded_image = cv2.imencode('.jpg', cv_ColorImage)
         content2 = encoded_image.tobytes()
@@ -82,12 +93,35 @@ class ScanApproachNode(Node):
                 self.target_publisher.publish(target_point)
                 return x_pixel, y_pixel 
                 break
-        msg = Twist()
-        msg.angular.z = 0.5 # turn 
+        #msg = Twist()
+        #msg.angular.z = 0.5 # turn 
 
 if __name__ == '__main__':
     rclpy.init()
     node = ScanApproachNode()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    # rclpy.spin(node)
+    # node.destroy_node()
+    # rclpy.shutdown()
+    
+    # depth = cv2.imread("depth.png", cv2.IMREAD_UNCHANGED)
+    # rgb = cv2.imread("rgb.png")
+    depth_K = (360.01, 360.01, 243.87, 137.92)
+    rgb_K = (1297.67, 1298.63, 620.91, 238.28)
+    cam2cam_transform = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+
+    # define images with created node
+    aligned_depth = align_depth(depth, depth_K, rgb, rgb_K, cam2cam_transform)
+
+    x,y = node.ScanImage
+
+    desired_depth = aligned_depth[x,y]
+    max_depth_thres = 3 # m
+    min_depth_thres = .5 # m
+    while desired_depth >= max_depth_thres or desired_depth <= min_depth_thres: 
+        if desired_depth >= max_depth_thres:
+            pass # approach the object
+        else:
+            pass # grab 
+    # push depth, x, y to navigation
+
+
