@@ -30,7 +30,7 @@ class ScanApproachNode(Node):
         super().__init__("scan_approach_node")
 
         # self.json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
-        self.json_key_path = '/home/locobot/Downloads/cs339r-448607-a4209bb69d63.json'
+        self.json_key_path = '/home/locobot/Downloads/united-potion-452200-b1-8bf065055d29.json'
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.json_key_path
 
         self.bridge = CvBridge()
@@ -67,7 +67,7 @@ class ScanApproachNode(Node):
     
     def ScanImage(self,imageMessage):
         cv_ColorImage = self.bridge.imgmsg_to_cv2(imageMessage, desired_encoding='passthrough')
-        depth_image = self.bridge.imgmg_to_cv2(imageMessage, desired_encoding='bgr8')
+        depth_image = self.bridge.imgmsg_to_cv2(imageMessage, desired_encoding='bgr8')
 
         # convert to depth
         # May need to convert image to bytes first with
@@ -82,7 +82,7 @@ class ScanApproachNode(Node):
         for object in objects:
             print("Detected object", object.name.lower())
             if object.name.lower() == self.desiredObject:
-                x_pixel, y_pixel = self.obj_detect.find_center(self,content2,object.name.lower())
+                x_pixel, y_pixel = self.obj_detect.find_center(content2,object.name.lower())
                 # msg = Twist()
                 # msg.linear.x = 0.5  # Set linear velocity (forward)
                 # self.mobile_base_vel_publisher.publish(msg)
@@ -91,6 +91,7 @@ class ScanApproachNode(Node):
                 target_point.x = x_pixel
                 target_point.y = y_pixel
                 self.target_publisher.publish(target_point)
+                
                 return x_pixel, y_pixel 
                 break
         #msg = Twist()
@@ -99,29 +100,29 @@ class ScanApproachNode(Node):
 if __name__ == '__main__':
     rclpy.init()
     node = ScanApproachNode()
-    # rclpy.spin(node)
-    # node.destroy_node()
-    # rclpy.shutdown()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
     
     # depth = cv2.imread("depth.png", cv2.IMREAD_UNCHANGED)
     # rgb = cv2.imread("rgb.png")
-    depth_K = (360.01, 360.01, 243.87, 137.92)
-    rgb_K = (1297.67, 1298.63, 620.91, 238.28)
-    cam2cam_transform = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+    # depth_K = (360.01, 360.01, 243.87, 137.92)
+    # rgb_K = (1297.67, 1298.63, 620.91, 238.28)
+    # cam2cam_transform = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
 
-    # define images with created node
-    aligned_depth = align_depth(depth, depth_K, rgb, rgb_K, cam2cam_transform)
+    # # define images with created node
+    # aligned_depth = align_depth(depth, depth_K, rgb, rgb_K, cam2cam_transform)
 
-    x,y = node.ScanImage
+    # x,y = node.ScanImage
 
-    desired_depth = aligned_depth[x,y]
-    max_depth_thres = 3 # m
-    min_depth_thres = .5 # m
-    while desired_depth >= max_depth_thres or desired_depth <= min_depth_thres: 
-        if desired_depth >= max_depth_thres:
-            pass # approach the object
-        else:
-            pass # grab 
+    # desired_depth = aligned_depth[x,y]
+    # max_depth_thres = 3 # m
+    # min_depth_thres = .5 # m
+    # while desired_depth >= max_depth_thres or desired_depth <= min_depth_thres: 
+    #     if desired_depth >= max_depth_thres:
+    #         pass # approach the object
+    #     else:
+    #         pass # grab 
     # push depth, x, y to navigation
 
 
