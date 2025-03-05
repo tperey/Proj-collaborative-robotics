@@ -14,14 +14,15 @@ from sensor_msgs.msg import Image
 
 import geometry_msgs
 from geometry_msgs.msg import Pose
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Vector3
 from geometry_msgs.msg import Point
 from nav_msgs.msg import Odometry
+from std_msgs.msg import String
 
 from rclpy.qos import qos_profile_sensor_data, QoSProfile 
 from verbal import SpeechTranscriber
 from find_center import VisionObjectDetector
-import align_depth
+#import align_depth
 
 #json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
 
@@ -30,15 +31,17 @@ class ScanApproachNode(Node):
         super().__init__("scan_approach_node")
 
         # self.json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
-        self.json_key_path = '/home/locobot/Downloads/united-potion-452200-b1-8bf065055d29.json'
+        # self.json_key_path = '/home/locobot/Downloads/united-potion-452200-b1-8bf065055d29.json'
+        self.json_key_path ="/home/ubuntu/Desktop/LabDocker/Proj-collaborative-robotics/ros/collab_ws/src/collaborative_robotics_course/locobot_autonomy/locobot_autonomy/united-potion-452200-b1-8bf065055d29.json"
+
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.json_key_path
 
         self.bridge = CvBridge()
     
         self.client = vision.ImageAnnotatorClient()
 
-        self.mobile_base_vel_publisher = self.create_publisher(Twist,"/locobot/mobile_base/cmd_vel", 1)
-        self.target_publisher = self.create_publisher(Point, "/target_point", 10)
+        # self.mobile_base_vel_publisher = self.create_publisher(Twist,"/locobot/mobile_base/cmd_vel", 1)
+        # self.target_publisher = self.create_publisher(Point, "/target_point", 10)
 
         # msg = Twist()
         # msg.angular.z = 0.5  # Set angular velocity (turn)
@@ -48,8 +51,21 @@ class ScanApproachNode(Node):
         self.obj_detect = VisionObjectDetector()
 
         #self.desiredObject = self.speech.transcribe_audio(audio_content).lower()  #"Medicine"
-        self.desiredObject = "banana"
+        self.desiredObject = "block"
 
+        """ PUBLISHERS """
+        self.drive_state_publisher = self.create_publisher(String, "/drive_state", 10)
+        self.obj_coord_publisher = self.create_publisher(Point, "/obj_coord", 10)
+        self.gripper_state_publisher = self.create_publisher(String, "/gripper_state", 10)
+
+        # Direct commands
+        self.base_twist_publisher = self.create_publisher(Twist, "/base_twist", 10) # For directly commanding base driver
+        
+        # Sim and/or testing only
+        self.test_timer = self.create_timer(1.0, self.test_callback)
+        self.sim_base_publisher = self.create_publisher(Twist,"/locobot/diffdrive_controller/cmd_vel_unstamped", 1) #this is the topic we will publish to in order to move the base
+
+        """ SUBSCRIBERS """
         self.camera_subscription = self.create_subscription(
             Image,
             "/locobot/camera/color/image_raw",
@@ -64,8 +80,30 @@ class ScanApproachNode(Node):
             qos_profile=qos_profile_sensor_data
             )
         self.depth_subscription
+
+        """ STATE MACHINE """
+        self.state_var = "RotateFind" # Initial state
+
+        self.get_logger().info('ScanApproachNode has started')
+    
+    def test_callback(self):
+        self.get_logger().info('TIMER TESTER callback triggered')
+        # Directly command
+        rotatemsg = Twist()
+        rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
+        rotatemsg.angular = Vector3(x=0.0, y=0.0, z=10.0) # Just rotate
+
+        #self.base_twist_publisher.publish(rotatemsg)
+        self.sim_base_publisher.publish(rotatemsg)
+
+        self.get_logger().info(f'Posted {rotatemsg.linear}, {rotatemsg.angular}')
+    
     
     def ScanImage(self,imageMessage):
+
+        self.get_logger().info('Camera callback triggered')
+
+        """ GENERAL IMAGE PROCESSING - Get objects """
         cv_ColorImage = self.bridge.imgmsg_to_cv2(imageMessage, desired_encoding='passthrough')
         depth_image = self.bridge.imgmsg_to_cv2(imageMessage, desired_encoding='bgr8')
 
@@ -79,21 +117,36 @@ class ScanApproachNode(Node):
         response = self.client.object_localization(image=visionImage)
         # Extract localized object annotations
         objects = response.localized_object_annotations
-        for object in objects:
-            print("Detected object", object.name.lower())
-            if object.name.lower() == self.desiredObject:
-                x_pixel, y_pixel = self.obj_detect.find_center(content2,object.name.lower())
-                # msg = Twist()
-                # msg.linear.x = 0.5  # Set linear velocity (forward)
-                # self.mobile_base_vel_publisher.publish(msg)
+        """ END GENERAL PROCESSING """
 
-                target_point = Point()
-                target_point.x = x_pixel
-                target_point.y = y_pixel
-                self.target_publisher.publish(target_point)
-                
-                return x_pixel, y_pixel 
-                break
+        """ STATE MACHINE """   
+        if self.state_var == "RotateFind":
+            ### Rotation ###
+            # Using driver node
+            # drivestate_to_post = String("turn")
+            # self.drive_state_publisher.publish(drivestate_to_post)
+
+            # Directly command
+            rotatemsg = Twist()
+            rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
+            rotatemsg.angular = Vector3(x=0.0, y=0.0, z=10.0) # Just rotate
+            self.base_twist_publisher.publish(rotatemsg)
+
+            for object in objects:
+                print("Detected object", object.name.lower())
+                if object.name.lower() == self.desiredObject:
+                    x_pixel, y_pixel = self.obj_detect.find_center(content2,object.name.lower())
+                    # msg = Twist()
+                    # msg.linear.x = 0.5  # Set linear velocity (forward)
+                    # self.mobile_base_vel_publisher.publish(msg)
+
+                    target_point = Point()
+                    target_point.x = x_pixel
+                    target_point.y = y_pixel
+                    self.target_publisher.publish(target_point)
+                    
+                    return x_pixel, y_pixel 
+                    break
         #msg = Twist()
         #msg.angular.z = 0.5 # turn 
 
