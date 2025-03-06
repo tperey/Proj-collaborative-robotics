@@ -49,7 +49,7 @@ install(PROGRAMS
   locobot_autonomy/move_locobot_base_action_server.py
   locobot_autonomy/follow_traj_hw2.py
   locobot_autonomy/test_arm_move.py
-  locobot_autonomy/perception/camera.py
+  locobot_autonomy/perception/camera_sim.py
   locobot_autonomy/perception/find_center.py
   locobot_autonomy/perception/verbal.py
   locobot_autonomy/manipulation_node.py

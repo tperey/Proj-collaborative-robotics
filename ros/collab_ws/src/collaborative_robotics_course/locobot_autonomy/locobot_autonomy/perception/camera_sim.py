@@ -68,59 +68,75 @@ class ScanApproachNode(Node):
         self.sim_base_publisher = self.create_publisher(Twist,"/locobot/diffdrive_controller/cmd_vel_unstamped", 1) #this is the topic we will publish to in order to move the base
 
         """ CREATE SUBSCRIBERS """
-        self.camera_subscription = self.create_subscription(
-            Image,
-            "/locobot/camera/color/image_raw",
-            self.ScanImage,
-            qos_profile=qos_profile_sensor_data  # Best effort QoS profile for sensor data [usual would be queue size: 1]
-            ) #this says: listen to the image_raw message, of type Image, and send that to the callback function specified
-        self.camera_subscription  # prevent unused variable warning
-        self.depth_subscription = self.create_subscription(
-            Image,
-            '/camera/aligned_depth_to_color/image_raw', 
-            self.ScanImage,
-            qos_profile=qos_profile_sensor_data
-            )
-        self.depth_subscription
+        self.use_sim = True
+        if self.use_sim:
+            self.camera_subscription = self.create_subscription(
+                Image,
+                "/locobot/camera/image_raw",
+                self.ScanImage,
+                qos_profile=qos_profile_sensor_data  # Best effort QoS profile for sensor data [usual would be queue size: 1]
+                ) #this says: listen to the image_raw message, of type Image, and send that to the callback function specified
+            self.camera_subscription  # prevent unused variable warning
+            self.depth_subscription = self.create_subscription(
+                Image,
+                '/camera/depth/image_raw', 
+                self.ScanImage,
+                qos_profile=qos_profile_sensor_data
+                )
+            self.depth_subscription
 
-        self.get_logger().info('Subscribers created')
+            self.get_logger().info('SIMULATION Subscribers created')
+
+        else:
+        
+            self.camera_subscription = self.create_subscription(
+                Image,
+                "/locobot/camera/color/image_raw",
+                self.ScanImage,
+                qos_profile=qos_profile_sensor_data  # Best effort QoS profile for sensor data [usual would be queue size: 1]
+                ) #this says: listen to the image_raw message, of type Image, and send that to the callback function specified
+            self.camera_subscription  # prevent unused variable warning
+            self.depth_subscription = self.create_subscription(
+                Image,
+                '/camera/aligned_depth_to_color/image_raw', 
+                self.ScanImage,
+                qos_profile=qos_profile_sensor_data
+                )
+            self.depth_subscription
 
         """ STATE MACHINE """
-        self.state_var = "Init" # Initial state
-        self.use_sim = False # sim for now
-
+        self.state_var = "RotateFind" # Initial state
         self.get_logger().info('ScanApproachNode now running')
 
+    #     """ INIT TIMER FOR TESTING ONLY """
+    #     self.init_timer = self.create_timer(1.0, self.initializePerception_test)
 
-        """ INIT TIMER FOR TESTING ONLY """
-        self.init_timer = self.create_timer(1.0, self.initializePerception_test)
+    # def initializePerception_test(self):
+    #     self.get_logger().info(f'~~~Running init')
+    #     ### EXECUTE INITIALIZATION in sim (only time to use this) ###
 
-    def initializePerception_test(self):
-        self.get_logger().info(f'~~~Running init')
-        ### EXECUTE INITIALIZATION in sim (only time to use this) ###
+    #     ### Gripper ###
+    #     # Tell gripper to move out of camera view
+    #     # STILL USE MANIPULATION CODE TO TEST IT
+    #     gripperstate_to_post = String()
+    #     gripperstate_to_post.data = "wait"
+    #     self.gripper_state_publisher.publish(gripperstate_to_post)
 
-        ### Gripper ###
-        # Tell gripper to move out of camera view
-        # STILL USE MANIPULATION CODE TO TEST IT
-        gripperstate_to_post = String()
-        gripperstate_to_post.data = "wait"
-        self.gripper_state_publisher.publish(gripperstate_to_post)
-
-        self.get_logger().info(f'Moved gripper in sim to wait')
-        #self.get_logger().info(f'WAITING for gripper to finish!!!')
-        #time.sleep(15)
+    #     self.get_logger().info(f'Moved gripper in sim to wait')
+    #     #self.get_logger().info(f'WAITING for gripper to finish!!!')
+    #     #time.sleep(15)
 
 
-        ### Base ### 
-        # Directly command
-        rotatemsg = Twist()
-        rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
-        rotatemsg.angular = Vector3(x=0.0, y=0.0, z=5.0) # Just rotate
+    #     ### Base ### 
+    #     # Directly command
+    #     rotatemsg = Twist()
+    #     rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
+    #     rotatemsg.angular = Vector3(x=0.0, y=0.0, z=5.0) # Just rotate
 
-        #self.base_twist_publisher.publish(rotatemsg)
-        self.sim_base_publisher.publish(rotatemsg)
+    #     #self.base_twist_publisher.publish(rotatemsg)
+    #     self.sim_base_publisher.publish(rotatemsg)
 
-        self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
+    #     self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
 
         #self.init_timer.cancel() # Only run once
     
@@ -157,11 +173,14 @@ class ScanApproachNode(Node):
         """ END GENERAL PROCESSING """
 
         """ STATE MACHINE """   
-        if self.state_var == "Init":
-            ### EXECUTE INITIALIZATION ###
+        # if self.state_var == "Init":
+        #     ### EXECUTE INITIALIZATION ###
+        #     self.state_var = "RotateFind"
+            
+        if self.state_var == "RotateFind":
+            ### Base ### 
             if self.use_sim:
 
-                ### Base ### 
                 # Directly command
                 rotatemsg = Twist()
                 rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
@@ -172,37 +191,19 @@ class ScanApproachNode(Node):
 
                 self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
 
-                ### Gripper ###
-                desired_pose_msg = PoseStamped() # Define pose
-                desired_pose_msg.pose.position.x = 0.1
-                desired_pose_msg.pose.position.y = 0.2
-                desired_pose_msg.pose.position.z = 0.1
-                desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
-                desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
-                desired_pose_msg.pose.orientation.z = 0.0
-                desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
-
-                self.sim_arm_publisher.publish(desired_pose_msg) # Publish pose
-
-                self.get_logger().info(f'Moved gripper in sim to {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}')
-
             else:
-                ### Gripper ###
-                # Tell gripper to move out of camera view
-                gripperstate_to_post = String()
-                gripperstate_to_post.data = "wait"
-                self.gripper_state_publisher.publish(gripperstate_to_post)
 
-                ### Arm ###
                 drivestate_to_post = String()
                 drivestate_to_post.data = "turn"
                 self.drive_state_publisher.publish(drivestate_to_post)
+
+                self.get_logger().info(f'Rotate base')
             
-            self.state_var = "RotateFind"
-            
-        if self.state_var == "RotateFind":
-            ### ROTATION and ARM ###
-            # Only change on transition
+            ### Arm ###
+            gripperstate_to_post = String()
+            gripperstate_to_post.data = "wait"
+            self.gripper_state_publisher.publish(gripperstate_to_post)
+            self.get_logger().info(f'Moved gripper in sim to wait')
 
             ### OBJECT LOCALIZATION ###
             for object in objects:
@@ -236,39 +237,39 @@ class ScanApproachNode(Node):
 
                     self.state_var = "Drive2Obj"
         
-        elif self.state_var == "Drive2Obj":
-            ### DRIVE TOWARDS OBJECT ###
-            # Only post once, on transition
+        # elif self.state_var == "Drive2Obj":
+        #     ### DRIVE TOWARDS OBJECT ###
+        #     # Only post once, on transition
 
-            ### OBJECT LOCALIZATION ###
-            for object in objects:
-                print("Detected object", object.name.lower())
+        #     ### OBJECT LOCALIZATION ###
+        #     for object in objects:
+        #         print("Detected object", object.name.lower())
 
-                # If have desired object
-                if object.name.lower() == self.desiredObject:
+        #         # If have desired object
+        #         if object.name.lower() == self.desiredObject:
 
-                    # Post its position
-                    x_pixel, y_pixel = self.obj_detect.find_center(content2,object.name.lower())
-                    # msg = Twist()
-                    # msg.linear.x = 0.5  # Set linear velocity (forward)
-                    # self.mobile_base_vel_publisher.publish(msg)
+        #             # Post its position
+        #             x_pixel, y_pixel = self.obj_detect.find_center(content2,object.name.lower())
+        #             # msg = Twist()
+        #             # msg.linear.x = 0.5  # Set linear velocity (forward)
+        #             # self.mobile_base_vel_publisher.publish(msg)
 
-                    target_point = Point()
-                    target_point.x = x_pixel
-                    target_point.y = y_pixel
-                    #self.target_publisher.publish(target_point)
-                    self.obj_coord_publisher(target_point)
+        #             target_point = Point()
+        #             target_point.x = x_pixel
+        #             target_point.y = y_pixel
+        #             #self.target_publisher.publish(target_point)
+        #             self.obj_coord_publisher(target_point)
                     
-                    #return x_pixel, y_pixel 
+        #             #return x_pixel, y_pixel 
 
-                    # NEED DEPTH CHANGES
+        #             # NEED DEPTH CHANGES
 
-                    # State transition
-                    #self.state_var = "Drive2Obj"
-                else:
-                    pass
+        #             # State transition
+        #             #self.state_var = "Drive2Obj"
+        #         else:
+        #             pass
 
-                    # Do something if can't find object???
+        #             # Do something if can't find object???
             
 
 
