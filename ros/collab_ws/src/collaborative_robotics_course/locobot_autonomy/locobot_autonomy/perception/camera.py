@@ -33,25 +33,24 @@ class ScanApproachNode(Node):
 
         # self.json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
         # self.json_key_path = '/home/locobot/Downloads/united-potion-452200-b1-8bf065055d29.json'
-        self.json_key_path ="/home/ubuntu/Desktop/LabDocker/Proj-collaborative-robotics/ros/collab_ws/src/collaborative_robotics_course/locobot_autonomy/locobot_autonomy/united-potion-452200-b1-8bf065055d29.json"
-
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.json_key_path
-
-        self.bridge = CvBridge()
-    
-        self.client = vision.ImageAnnotatorClient()
-
+        #self.desiredObject = self.speech.transcribe_audio(audio_content).lower()  #"Medicine"
         # self.mobile_base_vel_publisher = self.create_publisher(Twist,"/locobot/mobile_base/cmd_vel", 1)
         # self.target_publisher = self.create_publisher(Point, "/target_point", 10)
 
         # msg = Twist()
         # msg.angular.z = 0.5  # Set angular velocity (turn)
         # self.mobile_base_vel_publisher.publish(msg)
+        
+        """ VISION """
+        self.json_key_path ="/home/ubuntu/Desktop/LabDocker/Proj-collaborative-robotics/ros/collab_ws/src/collaborative_robotics_course/locobot_autonomy/locobot_autonomy/united-potion-452200-b1-8bf065055d29.json"
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.json_key_path
+
+        self.bridge = CvBridge()
+        self.client = vision.ImageAnnotatorClient()
 
         self.speech = SpeechTranscriber()
         self.obj_detect = VisionObjectDetector()
 
-        #self.desiredObject = self.speech.transcribe_audio(audio_content).lower()  #"Medicine"
         self.desiredObject = "block"
 
         """ PUBLISHERS """
