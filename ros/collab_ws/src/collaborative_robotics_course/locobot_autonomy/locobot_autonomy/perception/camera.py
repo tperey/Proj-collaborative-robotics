@@ -90,15 +90,21 @@ class ScanApproachNode(Node):
                 target_point = Point()
                 target_point.x = x_pixel
                 target_point.y = y_pixel
+                aligned_depth = align_depth(depth_image, depth_K, cv_ColorImage, rgb_K, cam2cam_transform)    
+                desired_depth = aligned_depth[x_pixel, y_pixel]
+
                 self.target_publisher.publish(target_point)
                 
-                return x_pixel, y_pixel 
+                return x_pixel, y_pixel, desired_depth 
                 break
         #msg = Twist()
         #msg.angular.z = 0.5 # turn 
 
 if __name__ == '__main__':
     rclpy.init()
+    depth_K = (360.01, 360.01, 243.87, 137.92)
+    rgb_K = (1297.67, 1298.63, 620.91, 238.28)
+    cam2cam_transform = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
     node = ScanApproachNode()
     rclpy.spin(node)
     node.destroy_node()
@@ -106,9 +112,6 @@ if __name__ == '__main__':
     
     # depth = cv2.imread("depth.png", cv2.IMREAD_UNCHANGED)
     # rgb = cv2.imread("rgb.png")
-    # depth_K = (360.01, 360.01, 243.87, 137.92)
-    # rgb_K = (1297.67, 1298.63, 620.91, 238.28)
-    # cam2cam_transform = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
 
     # # define images with created node
     # aligned_depth = align_depth(depth, depth_K, rgb, rgb_K, cam2cam_transform)
