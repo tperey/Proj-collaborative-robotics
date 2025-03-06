@@ -261,9 +261,6 @@ class ScanApproachNode(Node):
             else:
                 self.state_var = "Init"
 
-        #msg = Twist()
-        #msg.angular.z = 0.5 # turn 
-
 if __name__ == '__main__':
     rclpy.init()
     node = ScanApproachNode()
