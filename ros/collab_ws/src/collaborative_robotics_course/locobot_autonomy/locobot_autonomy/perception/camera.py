@@ -201,7 +201,7 @@ class ScanApproachNode(Node):
                 # NEED DEPTH CHANGES
 
                 # State transition
-                self.drive_state_publisher.publish(String("go")) # Stop in btw for carefulness
+                self.drive_state_publisher.publish(String("go"))
 
                 # Don't change gripper
 
