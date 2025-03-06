@@ -52,6 +52,7 @@ install(PROGRAMS
   locobot_autonomy/perception/camera.py
   locobot_autonomy/perception/find_center.py
   locobot_autonomy/perception/verbal.py
+  locobot_autonomy/localization.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
