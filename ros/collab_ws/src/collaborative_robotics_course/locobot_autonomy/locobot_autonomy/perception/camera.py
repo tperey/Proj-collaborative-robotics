@@ -20,9 +20,12 @@ from nav_msgs.msg import Odometry
 from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 
+from message_filters import ApproximateTimeSynchronizer, Subscriber
+
 from rclpy.qos import qos_profile_sensor_data, QoSProfile 
 from verbal import SpeechTranscriber
 from find_center import VisionObjectDetector
+import google.generativeai as genai
 #import align_depth
 
 #json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
@@ -50,8 +53,11 @@ class ScanApproachNode(Node):
 
         self.speech = SpeechTranscriber()
         self.obj_detect = VisionObjectDetector()
+        self.gemini = genai.GenerativeModel("gemini-1.5-flash")
 
+        self.task = "retrieve"
         self.desiredObject = "block"
+        self.destination = None
 
         """ PUBLISHERS """
         self.drive_state_publisher = self.create_publisher(String, "/drive_state", 10)
@@ -67,20 +73,10 @@ class ScanApproachNode(Node):
         self.sim_base_publisher = self.create_publisher(Twist,"/locobot/diffdrive_controller/cmd_vel_unstamped", 1) #this is the topic we will publish to in order to move the base
 
         """ CREATE SUBSCRIBERS """
-        self.camera_subscription = self.create_subscription(
-            Image,
-            "/locobot/camera/color/image_raw",
-            self.ScanImage,
-            qos_profile=qos_profile_sensor_data  # Best effort QoS profile for sensor data [usual would be queue size: 1]
-            ) #this says: listen to the image_raw message, of type Image, and send that to the callback function specified
-        self.camera_subscription  # prevent unused variable warning
-        self.depth_subscription = self.create_subscription(
-            Image,
-            '/camera/aligned_depth_to_color/image_raw', 
-            self.ScanImage,
-            qos_profile=qos_profile_sensor_data
-            )
-        self.depth_subscription
+        rgb_camera = Subscriber(self, Image, "/locobot/camera/color/image_raw")
+        depth_camera = Subscriber(self, Image, '/camera/aligned_depth_to_color/image_raw')
+        camera_sub = ApproximateTimeSynchronizer([rgb_camera, depth_camera], 10, 1)
+        camera_sub.registerCallback(self.ScanImage)
 
         self.get_logger().info('Subscribers created')
 
@@ -145,136 +141,114 @@ class ScanApproachNode(Node):
 
     #     self.get_logger().info(f'Posted {rotatemsg.linear}, {rotatemsg.angular}')
     
-    def ScanImage(self,imageMessage):
+    def ScanImage(self, rgb_imgmsg, depth_imgmsg):
 
         self.get_logger().info('Camera callback triggered')
-
-        """ GENERAL IMAGE PROCESSING - Get objects """
-        cv_ColorImage = self.bridge.imgmsg_to_cv2(imageMessage, desired_encoding='passthrough')
-        depth_image = self.bridge.imgmsg_to_cv2(imageMessage, desired_encoding='bgr8')
-
-        # convert to depth
-        # May need to convert image to bytes first with
-        success, encoded_image = cv2.imencode('.jpg', cv_ColorImage)
-        content2 = encoded_image.tobytes()
-        visionImage = vision.Image(content=content2)
-        self.get_logger().info(str(type(visionImage)))
-        # Send the image to the API for object localization
-        response = self.client.object_localization(image=visionImage)
-        # Extract localized object annotations
-        objects = response.localized_object_annotations
-        """ END GENERAL PROCESSING """
 
         """ STATE MACHINE """   
         if self.state_var == "Init":
             ### EXECUTE INITIALIZATION ###
-            if self.use_sim:
 
-                ### Base ### 
-                # Directly command
-                rotatemsg = Twist()
-                rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
-                rotatemsg.angular = Vector3(x=0.0, y=0.0, z=5.0) # Just rotate
+            # Listen and get task
+            # transcribed_audio = self.speech.record_audio("temp.wav")[0]
+            
+            # response = self.gemini.generate_content(
+            #     "In the given voice transcript, identify the main action being required - retrieve or place. Then identify the main object."+\
+            #         "Return only the action and object in lowercase and do not include any whitespaces, punctuation, or new lines other than a single whitespace between the action and object. "+\
+            #         "Here is the voice transcript: " + transcribed_audio)
+            # self.task, self.desiredObject = response.text.split()
+            # if task == "place":
+            #     response = self.gemini.generate_content("In the given voice transcript, where does the user want to have the object placed? "+\
+            #                                             "Return only the destination in lowercase and do not include any whitespaces, punctuation, or new lines. "+\
+            #                                                 "Here is the voice transcript: " + transcribed_audio)
+            # self.destination = response.text
 
-                #self.base_twist_publisher.publish(rotatemsg)
-                self.sim_base_publisher.publish(rotatemsg)
+            ### Gripper ###
+            # Tell gripper to move out of camera view
+            self.gripper_state_publisher.publish(String("wait"))
 
-                self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
-
-                ### Gripper ###
-                desired_pose_msg = PoseStamped() # Define pose
-                desired_pose_msg.pose.position.x = 0.1
-                desired_pose_msg.pose.position.y = 0.2
-                desired_pose_msg.pose.position.z = 0.1
-                desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
-                desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
-                desired_pose_msg.pose.orientation.z = 0.0
-                desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
-
-                self.sim_arm_publisher.publish(desired_pose_msg) # Publish pose
-
-                self.get_logger().info(f'Moved gripper in sim to {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}')
-
-            else:
-                ### Gripper ###
-                # Tell gripper to move out of camera view
-                gripperstate_to_post = String("wait")
-                self.gripper_state_publisher.publish(gripperstate_to_post)
-
-                ### Arm ###
-                drivestate_to_post = String("turn")
-                self.drive_state_publisher.publish(drivestate_to_post)
+            ### Arm ###
+            self.drive_state_publisher.publish(String("turn"))
             
             self.state_var = "RotateFind"
             
         if self.state_var == "RotateFind":
+            """ GENERAL IMAGE PROCESSING - Get objects """
+            cv_ColorImage = self.bridge.imgmsg_to_cv2(rgb_imgmsg, desired_encoding='passthrough')
+            depth_image = self.bridge.imgmsg_to_cv2(depth_imgmsg, desired_encoding='mono8')
+
+            # convert to depth
+            # May need to convert image to bytes first with
+            success, encoded_image = cv2.imencode('.jpg', cv_ColorImage)
+            img_bytes = encoded_image.tobytes()
+
             ### ROTATION and ARM ###
             # Only change on transition
 
             ### OBJECT LOCALIZATION ###
-            for object in objects:
-                print("Detected object", object.name.lower())
+            center = self.obj_detect.find_center(img_bytes, object.name.lower())
 
-                # If have desired object
-                if object.name.lower() == self.desiredObject:
+            if center is not None:
+                # msg = Twist()
+                # msg.linear.x = 0.5  # Set linear velocity (forward)
+                # self.mobile_base_vel_publisher.publish(msg)
 
-                    # Post its position
-                    x_pixel, y_pixel = self.obj_detect.find_center(content2,object.name.lower())
-                    # msg = Twist()
-                    # msg.linear.x = 0.5  # Set linear velocity (forward)
-                    # self.mobile_base_vel_publisher.publish(msg)
+                target_point = Point()
+                target_point.x = center[0]
+                target_point.y = center[1]
+                self.obj_coord_publisher(target_point)
 
-                    target_point = Point()
-                    target_point.x = x_pixel
-                    target_point.y = y_pixel
-                    #self.target_publisher.publish(target_point)
-                    self.obj_coord_publisher(target_point)
-                    
-                    #return x_pixel, y_pixel 
+                # NEED DEPTH CHANGES
 
-                    # NEED DEPTH CHANGES
+                # State transition
+                self.drive_state_publisher.publish(String("go")) # Stop in btw for carefulness
 
-                    # State transition
-                    change_drive_to = String("go")
-                    self.drive_state_publisher.publish(change_drive_to) # Stop in btw for carefullness
+                # Don't change gripper
 
-                    # Don't change gripper
-
-                    self.state_var = "Drive2Obj"
+                self.state_var = "Drive2Obj"
+            else:
+                self.drive_state_publisher.publish(String("turn"))
         
         elif self.state_var == "Drive2Obj":
             ### DRIVE TOWARDS OBJECT ###
             # Only post once, on transition
 
+            """ GENERAL IMAGE PROCESSING - Get objects """
+            cv_ColorImage = self.bridge.imgmsg_to_cv2(rgb_imgmsg, desired_encoding='passthrough')
+            depth_image = self.bridge.imgmsg_to_cv2(depth_imgmsg, desired_encoding='mono8')
+
+            # convert to depth
+            # May need to convert image to bytes first with
+            success, encoded_image = cv2.imencode('.jpg', cv_ColorImage)
+            img_bytes = encoded_image.tobytes()
+
+            ### ROTATION and ARM ###
+            # Only change on transition
+
             ### OBJECT LOCALIZATION ###
-            for object in objects:
-                print("Detected object", object.name.lower())
+            center = self.obj_detect.find_center(img_bytes, object.name.lower())
+            
+            if center is not None:
+                # msg = Twist()
+                # msg.linear.x = 0.5  # Set linear velocity (forward)
+                # self.mobile_base_vel_publisher.publish(msg)
 
-                # If have desired object
-                if object.name.lower() == self.desiredObject:
+                target_point = Point()
+                target_point.x = center[0]
+                target_point.y = center[1]
+                self.obj_coord_publisher(target_point)
 
-                    # Post its position
-                    x_pixel, y_pixel = self.obj_detect.find_center(content2,object.name.lower())
-                    # msg = Twist()
-                    # msg.linear.x = 0.5  # Set linear velocity (forward)
-                    # self.mobile_base_vel_publisher.publish(msg)
+                # NEED DEPTH CHANGES
 
-                    target_point = Point()
-                    target_point.x = x_pixel
-                    target_point.y = y_pixel
-                    #self.target_publisher.publish(target_point)
-                    self.obj_coord_publisher(target_point)
-                    
-                    #return x_pixel, y_pixel 
+                # State transition
+                self.drive_state_publisher.publish(String("go")) # Stop in btw for carefulness
 
-                    # NEED DEPTH CHANGES
-
-                    # State transition
-                    #self.state_var = "Drive2Obj"
-                else:
-                    pass
-
-                    # Do something if can't find object???
+                # Don't change gripper
+                
+                # If depth is close enough, switch to next state
+            else:
+                # Can't see object anymore
+                self.state_var = "RotateFind"
             
 
 

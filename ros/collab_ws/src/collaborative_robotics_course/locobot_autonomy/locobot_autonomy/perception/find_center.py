@@ -40,23 +40,34 @@ class VisionObjectDetector:
         # Step 1: Create the Vision Image object from bytes
         vision_image = vision.Image(content = image_bytes)
         # Step 2: Send the image to the API for object localization
-        send_image = self.client.object_localization(image=vision_image)
+        response = self.client.object_localization(image=vision_image)
         # Step 3: Extract localized object annotations
-        extraction = send_image.localized_object_annotations 
+        objects = response.localized_object_annotations 
         # Step 4: Search for the specified object. Hint: Objects returns all detected objects
-        objects = extraction[0]
+        found = None
+        for obj in objects:
+            if obj.name.lower() == object_name.lower():
+                found = obj
+                break
+        for object in objects:
+            print("Detected object", object.name.lower())
         # Step 5: Once the object is found, determine the position from the bounding box. Hint: obj.bounding_poly returns the bounding box
-        corners = objects.bounding_poly.normalized_vertices
-        # Step 6: Find the center from the corners of the bounding box
-        x_center = sum(corner.x for corner in corners)/len(corners)
-        y_center = sum(corner.y for corner in corners)/len(corners)
-        # Step 7: Return the center in pixel coordinates. Hint: The position of the bounding box is normalized so you will need to convert it back into the dimensions of the image
-        opencv_img = cv2.imdecode(np.frombuffer(image_bytes, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
-        height, width = opencv_img.shape[:2]
-        x_pixel = x_center * width
-        y_pixel = y_center * height
+        if found:
+            corners = objects.bounding_poly.normalized_vertices
+            # Step 6: Find the center from the corners of the bounding box
+            x_center = sum(corner.x for corner in corners)/len(corners)
+            y_center = sum(corner.y for corner in corners)/len(corners)
 
-        return x_pixel, y_pixel
+            # Step 7: Return the center in pixel coordinates. Hint: The position of the bounding box is normalized so you will need to convert it back into the dimensions of the image
+            opencv_img = cv2.imdecode(np.frombuffer(image_bytes, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+            height, width = opencv_img.shape[:2]
+            x_pixel = x_center * width
+            y_pixel = y_center * height
+
+            return x_pixel, y_pixel
+        
+        else:
+            return None
 
     def annotate_image(self, image_bytes):
         """
