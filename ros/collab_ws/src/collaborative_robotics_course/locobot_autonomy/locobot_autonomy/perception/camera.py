@@ -18,6 +18,7 @@ from geometry_msgs.msg import Twist, Vector3
 from geometry_msgs.msg import Point
 from nav_msgs.msg import Odometry
 from std_msgs.msg import String
+from geometry_msgs.msg import PoseStamped
 
 from rclpy.qos import qos_profile_sensor_data, QoSProfile 
 from verbal import SpeechTranscriber
@@ -59,13 +60,14 @@ class ScanApproachNode(Node):
         self.gripper_state_publisher = self.create_publisher(String, "/gripper_state", 10)
 
         # Direct commands
-        self.base_twist_publisher = self.create_publisher(Twist, "/base_twist", 10) # For directly commanding base driver
+        #self.base_twist_publisher = self.create_publisher(Twist, "/base_twist", 10) # For directly commanding base driver
         
         # Sim and/or testing only
-        self.test_timer = self.create_timer(1.0, self.test_callback)
+        #self.test_timer = self.create_timer(1.0, self.test_callback)
+        self.sim_arm_publisher = self.create_publisher(PoseStamped, "/arm_pose", 10) # Arbitrarily queued 10
         self.sim_base_publisher = self.create_publisher(Twist,"/locobot/diffdrive_controller/cmd_vel_unstamped", 1) #this is the topic we will publish to in order to move the base
 
-        """ SUBSCRIBERS """
+        """ CREATE SUBSCRIBERS """
         self.camera_subscription = self.create_subscription(
             Image,
             "/locobot/camera/color/image_raw",
@@ -81,23 +83,68 @@ class ScanApproachNode(Node):
             )
         self.depth_subscription
 
+        self.get_logger().info('Subscribers created')
+
         """ STATE MACHINE """
-        self.state_var = "RotateFind" # Initial state
+        self.state_var = "Init" # Initial state
+        self.use_sim = False # sim for now
 
-        self.get_logger().info('ScanApproachNode has started')
+        #self.init_timer = self.create_timer(1.0, self.initializePerception)
+
+        self.get_logger().info('ScanApproachNode now running')
+
+    def initializePerception(self):
+        self.get_logger().info(f'~~~Running init')
+
+        ### EXECUTE INITIALIZATION ###
+        if self.use_sim:
+
+            ### Base ### 
+            # Directly command
+            rotatemsg = Twist()
+            rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
+            rotatemsg.angular = Vector3(x=0.0, y=0.0, z=5.0) # Just rotate
+
+            #self.base_twist_publisher.publish(rotatemsg)
+            self.sim_base_publisher.publish(rotatemsg)
+
+            self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
+
+            ### Gripper ###
+            desired_pose_msg = PoseStamped() # Define pose
+            desired_pose_msg.pose.position.x = 0.1
+            desired_pose_msg.pose.position.y = 0.2
+            desired_pose_msg.pose.position.z = 0.1
+            desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
+            desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
+            desired_pose_msg.pose.orientation.z = 0.0
+            desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
+
+            self.sim_arm_publisher.publish(desired_pose_msg) # Publish pose
+
+            self.get_logger().info(f'Moved gripper in sim to {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}')
+
+        else:
+            ### Gripper ###
+            # Tell gripper to move out of camera view
+            gripperstate_to_post = String("wait")
+            self.gripper_state_publisher.publish(gripperstate_to_post)
+
+            ### Arm ###
+            drivestate_to_post = String("turn")
+            self.drive_state_publisher.publish(drivestate_to_post)
     
-    def test_callback(self):
-        self.get_logger().info('TIMER TESTER callback triggered')
-        # Directly command
-        rotatemsg = Twist()
-        rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
-        rotatemsg.angular = Vector3(x=0.0, y=0.0, z=10.0) # Just rotate
+    # def test_callback(self):
+    #     self.get_logger().info('TIMER TESTER callback triggered')
+    #     # Directly command
+    #     rotatemsg = Twist()
+    #     rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
+    #     rotatemsg.angular = Vector3(x=0.0, y=0.0, z=10.0) # Just rotate
 
-        #self.base_twist_publisher.publish(rotatemsg)
-        self.sim_base_publisher.publish(rotatemsg)
+    #     #self.base_twist_publisher.publish(rotatemsg)
+    #     self.sim_base_publisher.publish(rotatemsg)
 
-        self.get_logger().info(f'Posted {rotatemsg.linear}, {rotatemsg.angular}')
-    
+    #     self.get_logger().info(f'Posted {rotatemsg.linear}, {rotatemsg.angular}')
     
     def ScanImage(self,imageMessage):
 
@@ -120,21 +167,59 @@ class ScanApproachNode(Node):
         """ END GENERAL PROCESSING """
 
         """ STATE MACHINE """   
+        if self.state_var == "Init":
+            ### EXECUTE INITIALIZATION ###
+            if self.use_sim:
+
+                ### Base ### 
+                # Directly command
+                rotatemsg = Twist()
+                rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
+                rotatemsg.angular = Vector3(x=0.0, y=0.0, z=5.0) # Just rotate
+
+                #self.base_twist_publisher.publish(rotatemsg)
+                self.sim_base_publisher.publish(rotatemsg)
+
+                self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
+
+                ### Gripper ###
+                desired_pose_msg = PoseStamped() # Define pose
+                desired_pose_msg.pose.position.x = 0.1
+                desired_pose_msg.pose.position.y = 0.2
+                desired_pose_msg.pose.position.z = 0.1
+                desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
+                desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
+                desired_pose_msg.pose.orientation.z = 0.0
+                desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
+
+                self.sim_arm_publisher.publish(desired_pose_msg) # Publish pose
+
+                self.get_logger().info(f'Moved gripper in sim to {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}')
+
+            else:
+                ### Gripper ###
+                # Tell gripper to move out of camera view
+                gripperstate_to_post = String("wait")
+                self.gripper_state_publisher.publish(gripperstate_to_post)
+
+                ### Arm ###
+                drivestate_to_post = String("turn")
+                self.drive_state_publisher.publish(drivestate_to_post)
+            
+            self.state_var = "RotateFind"
+            
         if self.state_var == "RotateFind":
-            ### Rotation ###
-            # Using driver node
-            # drivestate_to_post = String("turn")
-            # self.drive_state_publisher.publish(drivestate_to_post)
+            ### ROTATION and ARM ###
+            # Only change on transition
 
-            # Directly command
-            rotatemsg = Twist()
-            rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
-            rotatemsg.angular = Vector3(x=0.0, y=0.0, z=10.0) # Just rotate
-            self.base_twist_publisher.publish(rotatemsg)
-
+            ### OBJECT LOCALIZATION ###
             for object in objects:
                 print("Detected object", object.name.lower())
+
+                # If have desired object
                 if object.name.lower() == self.desiredObject:
+
+                    # Post its position
                     x_pixel, y_pixel = self.obj_detect.find_center(content2,object.name.lower())
                     # msg = Twist()
                     # msg.linear.x = 0.5  # Set linear velocity (forward)
@@ -143,10 +228,57 @@ class ScanApproachNode(Node):
                     target_point = Point()
                     target_point.x = x_pixel
                     target_point.y = y_pixel
-                    self.target_publisher.publish(target_point)
+                    #self.target_publisher.publish(target_point)
+                    self.obj_coord_publisher(target_point)
                     
-                    return x_pixel, y_pixel 
-                    break
+                    #return x_pixel, y_pixel 
+
+                    # NEED DEPTH CHANGES
+
+                    # State transition
+                    change_drive_to = String("go")
+                    self.drive_state_publisher.publish(change_drive_to) # Stop in btw for carefullness
+
+                    # Don't change gripper
+
+                    self.state_var = "Drive2Obj"
+        
+        elif self.state_var == "Drive2Obj":
+            ### DRIVE TOWARDS OBJECT ###
+            # Only post once, on transition
+
+            ### OBJECT LOCALIZATION ###
+            for object in objects:
+                print("Detected object", object.name.lower())
+
+                # If have desired object
+                if object.name.lower() == self.desiredObject:
+
+                    # Post its position
+                    x_pixel, y_pixel = self.obj_detect.find_center(content2,object.name.lower())
+                    # msg = Twist()
+                    # msg.linear.x = 0.5  # Set linear velocity (forward)
+                    # self.mobile_base_vel_publisher.publish(msg)
+
+                    target_point = Point()
+                    target_point.x = x_pixel
+                    target_point.y = y_pixel
+                    #self.target_publisher.publish(target_point)
+                    self.obj_coord_publisher(target_point)
+                    
+                    #return x_pixel, y_pixel 
+
+                    # NEED DEPTH CHANGES
+
+                    # State transition
+                    #self.state_var = "Drive2Obj"
+                else:
+                    pass
+
+                    # Do something if can't find object???
+            
+
+
         #msg = Twist()
         #msg.angular.z = 0.5 # turn 
 
