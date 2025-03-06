@@ -72,6 +72,7 @@ def compute_homography(K, R, t):
     """
     K_inv = np.linalg.inv(K)
     H = np.dot(K, np.dot(R - np.dot(t.reshape(-1, 1), K_inv[-1, :].reshape(1, -1)), K_inv))
+    #H = K @ (R - (t.reshape((-1,1)) @ K_inv[-1:, :].reshape(1,3))) @ K_inv
     return H
 
 
@@ -95,7 +96,13 @@ def align_depth(depth: np.ndarray, depth_K: Tuple[float,float,float,float], rgb:
     depth = convert_intrinsics(depth, K_old, K_new, new_size=(rgb.shape[1], rgb.shape[0]))
 
     # warp the depth image to the rgb image with the transformation matrix from camera to camera.
-    depth = warp_image(depth, K_new, cam2cam_transform[:3, :3], cam2cam_transform[:3, 3])        
+
+    # ***From Trevor: IF PURE ROTATION, SHOULD NOT WARP - will run into bad homography matrices. So test
+    t = cam2cam_transform[:3, 3]
+    if (np.linalg.norm(t) > 1e-8) :
+        depth = warp_image(depth, K_new, cam2cam_transform[:3, :3], cam2cam_transform[:3, 3])  
+    # Otherwise, will just return result of convert_intrinsics, and don't need to further warp, b/c pure rotation
+          
     return depth
 
 
@@ -112,3 +119,47 @@ aligned_depth = align_depth(depth, depth_K, rgb, rgb_K, cam2cam_transform)
 cv2.imwrite("aligned_depth.png", aligned_depth)
 
 """                                                           
+
+
+""" If for some reason we run into rgb-to-depth transformation issues, try this"""
+# # Alternative warp_image
+# import numpy as np
+# import cv2
+
+# def fully_warp_image(depth, K, R, t): # Handles complexities of pure rotation
+#     """
+#     Warp a depth image using a full 3D transformation (rotation + translation).
+    
+#     :param depth: Depth image (H x W)
+#     :param K: Intrinsic matrix (3x3)
+#     :param R: Rotation matrix (3x3)
+#     :param t: Translation vector (3x1)
+#     :return: Warped depth image
+#     """
+#     height, width = depth.shape
+
+#     # Generate pixel grid
+#     u, v = np.meshgrid(np.arange(width), np.arange(height))
+    
+#     # Convert pixel coordinates to homogeneous camera coordinates
+#     uv1 = np.stack([u.ravel(), v.ravel(), np.ones_like(u.ravel())], axis=0)
+    
+#     # Compute corresponding 3D points in the original camera frame
+#     K_inv = np.linalg.inv(K)
+#     points_3D = K_inv @ uv1 * depth.ravel()
+    
+#     # Apply rotation and translation
+#     transformed_3D = R @ points_3D + t.reshape(3,1)
+    
+#     # Project back to 2D pixel coordinates
+#     projected_2D = K @ transformed_3D
+#     projected_2D /= projected_2D[2, :]  # Normalize by depth
+
+#     # Reshape back to image size
+#     map_x = projected_2D[0, :].reshape(height, width).astype(np.float32)
+#     map_y = projected_2D[1, :].reshape(height, width).astype(np.float32)
+
+#     # Warp the depth image using remapping
+#     warped_depth = cv2.remap(depth, map_x, map_y, interpolation=cv2.INTER_NEAREST)
+
+#     return warped_depth

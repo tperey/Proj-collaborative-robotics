@@ -53,7 +53,8 @@ class VisionObjectDetector:
             print("Detected object", object.name.lower())
         # Step 5: Once the object is found, determine the position from the bounding box. Hint: obj.bounding_poly returns the bounding box
         if found:
-            corners = objects.bounding_poly.normalized_vertices
+            #corners = objects.bounding_poly.normalized_vertices
+            corners = found.bounding_poly.normalized_vertices # Need to use DESIRED obj, not entire 'objects' object. That doesnt work. 
             # Step 6: Find the center from the corners of the bounding box
             x_center = sum(corner.x for corner in corners)/len(corners)
             y_center = sum(corner.y for corner in corners)/len(corners)
