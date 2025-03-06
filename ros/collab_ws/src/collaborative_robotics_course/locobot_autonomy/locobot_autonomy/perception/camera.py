@@ -26,7 +26,7 @@ from rclpy.qos import qos_profile_sensor_data, QoSProfile
 from verbal import SpeechTranscriber
 from find_center import VisionObjectDetector
 import google.generativeai as genai
-#import align_depth
+from align_depth import align_depth
 
 #json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
 
@@ -84,62 +84,7 @@ class ScanApproachNode(Node):
         self.state_var = "Init" # Initial state
         self.use_sim = False # sim for now
 
-        #self.init_timer = self.create_timer(1.0, self.initializePerception)
-
         self.get_logger().info('ScanApproachNode now running')
-
-    def initializePerception(self):
-        self.get_logger().info(f'~~~Running init')
-
-        ### EXECUTE INITIALIZATION ###
-        if self.use_sim:
-
-            ### Base ### 
-            # Directly command
-            rotatemsg = Twist()
-            rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
-            rotatemsg.angular = Vector3(x=0.0, y=0.0, z=5.0) # Just rotate
-
-            #self.base_twist_publisher.publish(rotatemsg)
-            self.sim_base_publisher.publish(rotatemsg)
-
-            self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
-
-            ### Gripper ###
-            desired_pose_msg = PoseStamped() # Define pose
-            desired_pose_msg.pose.position.x = 0.1
-            desired_pose_msg.pose.position.y = 0.2
-            desired_pose_msg.pose.position.z = 0.1
-            desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
-            desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
-            desired_pose_msg.pose.orientation.z = 0.0
-            desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
-
-            self.sim_arm_publisher.publish(desired_pose_msg) # Publish pose
-
-            self.get_logger().info(f'Moved gripper in sim to {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}')
-
-        else:
-            ### Gripper ###
-            # Tell gripper to move out of camera view
-            gripperstate_to_post = String("wait")
-            self.gripper_state_publisher.publish(gripperstate_to_post)
-
-            ### Arm ###
-            drivestate_to_post = String("turn")
-            self.drive_state_publisher.publish(drivestate_to_post)
-    
-    # def test_callback(self):
-    #     self.get_logger().info('TIMER TESTER callback triggered')
-    #     # Directly command
-    #     rotatemsg = Twist()
-    #     rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
-    #     rotatemsg.angular = Vector3(x=0.0, y=0.0, z=10.0) # Just rotate
-
-    #     #self.base_twist_publisher.publish(rotatemsg)
-    #     self.sim_base_publisher.publish(rotatemsg)
-
-    #     self.get_logger().info(f'Posted {rotatemsg.linear}, {rotatemsg.angular}')
     
     def ScanImage(self, rgb_imgmsg, depth_imgmsg):
 
@@ -196,6 +141,8 @@ class ScanApproachNode(Node):
                 target_point = Point()
                 target_point.x = center[0]
                 target_point.y = center[1]
+                aligned_depth = align_depth(depth_image, depth_K, cv_ColorImage, rgb_K, cam2cam_transform)    
+                target_point.z = aligned_depth[center[0], center[1]]
                 self.obj_coord_publisher(target_point)
 
                 # NEED DEPTH CHANGES
@@ -263,6 +210,9 @@ class ScanApproachNode(Node):
 
 if __name__ == '__main__':
     rclpy.init()
+    depth_K = (360.01, 360.01, 243.87, 137.92)
+    rgb_K = (1297.67, 1298.63, 620.91, 238.28)
+    cam2cam_transform = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
     node = ScanApproachNode()
     rclpy.spin(node)
     node.destroy_node()
@@ -270,9 +220,6 @@ if __name__ == '__main__':
     
     # depth = cv2.imread("depth.png", cv2.IMREAD_UNCHANGED)
     # rgb = cv2.imread("rgb.png")
-    # depth_K = (360.01, 360.01, 243.87, 137.92)
-    # rgb_K = (1297.67, 1298.63, 620.91, 238.28)
-    # cam2cam_transform = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
 
     # # define images with created node
     # aligned_depth = align_depth(depth, depth_K, rgb, rgb_K, cam2cam_transform)
