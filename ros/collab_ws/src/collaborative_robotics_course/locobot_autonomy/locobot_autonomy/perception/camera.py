@@ -18,9 +18,11 @@ from geometry_msgs.msg import Twist, Vector3
 from geometry_msgs.msg import Point
 from nav_msgs.msg import Odometry
 from std_msgs.msg import String
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TransformStamped
+from sensor_msgs.msg import CameraInfo
 
 from message_filters import ApproximateTimeSynchronizer, Subscriber
+import tf2_ros
 
 from rclpy.qos import qos_profile_sensor_data, QoSProfile 
 from verbal import SpeechTranscriber
@@ -39,10 +41,6 @@ class ScanApproachNode(Node):
         #self.desiredObject = self.speech.transcribe_audio(audio_content).lower()  #"Medicine"
         # self.mobile_base_vel_publisher = self.create_publisher(Twist,"/locobot/mobile_base/cmd_vel", 1)
         # self.target_publisher = self.create_publisher(Point, "/target_point", 10)
-
-        # msg = Twist()
-        # msg.angular.z = 0.5  # Set angular velocity (turn)
-        # self.mobile_base_vel_publisher.publish(msg)
         
         """ VISION """
         self.json_key_path ="/home/ubuntu/Desktop/LabDocker/Proj-collaborative-robotics/ros/collab_ws/src/collaborative_robotics_course/locobot_autonomy/locobot_autonomy/united-potion-452200-b1-8bf065055d29.json"
@@ -78,13 +76,72 @@ class ScanApproachNode(Node):
         camera_sub = ApproximateTimeSynchronizer([rgb_camera, depth_camera], 10, 1)
         camera_sub.registerCallback(self.ScanImage)
 
+        rgb_cam_info = self.create_subscription(
+            CameraInfo,
+            '/locobot/camera/camera_info',
+            self.rgb_info_callback,
+            10)
+        depth_cam_info = self.create_subscription(
+            CameraInfo,
+            '/locobot/camera/depth/camera_info', #check topic name...
+            self.depth_info_callback,
+            10)
+
         self.get_logger().info('Subscribers created')
+
+        """ Create TF buffer and listner"""
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         """ STATE MACHINE """
         self.state_var = "Init" # Initial state
         self.use_sim = False # sim for now
 
         self.get_logger().info('ScanApproachNode now running')
+
+    def rgb_info_callback(self, camera_info):
+        self.rgb_K = np.array(camera_info.k).reshape((3,3))
+    
+    def depth_info_callback(self, camera_info):
+        self.depth_K = np.array(camera_info.k).reshape((3,3))
+    
+    def get_transformation(self):
+        """
+        Gets transformation data and calculates the transformation matrix
+        """
+        try:
+            # Get transformation data from rgb_camera and depth_camera
+            # Check frame names
+            trans: TransformStamped = self.tf_buffer.lookup_transform(
+                'locobot/camera_link', 'locobot/camera_depth_link', rclpy.time.Time())
+
+            # 이동(translation) 정보 추출
+            translation = np.array([trans.transform.translation.x,
+                           trans.transform.translation.y,
+                           trans.transform.translation.z]).reshape((3, 1))
+            
+            # Get rotation info (quaternions)
+            quaternion = np.array([trans.transform.rotation.x,
+                        trans.transform.rotation.y,
+                        trans.transform.rotation.z,
+                        trans.transform.rotation.w])
+
+            # Create transformation matrix
+            rotation = quaternion_to_rotation_matrix(quaternion)
+            transform_mat = np.concatenate((rotation, translation), axis=1)
+
+            # Print transformation matrix
+            self.get_logger().info(f'Transformation Matrix:\n{transform_mat}')
+
+            return transform_mat
+
+        except tf2_ros.LookupException as e:
+            self.get_logger().error('Transform not available.')
+            self.get_logger().error(f'{e}')
+        except tf2_ros.ConnectivityException:
+            self.get_logger().error('Connectivity issue.')
+        except tf2_ros.ExtrapolationException:
+            self.get_logger().error('Extrapolation error.')
     
     def ScanImage(self, rgb_imgmsg, depth_imgmsg):
 
@@ -134,18 +191,12 @@ class ScanApproachNode(Node):
             center = self.obj_detect.find_center(img_bytes, object.name.lower())
 
             if center is not None:
-                # msg = Twist()
-                # msg.linear.x = 0.5  # Set linear velocity (forward)
-                # self.mobile_base_vel_publisher.publish(msg)
-
                 target_point = Point()
                 target_point.x = center[0]
                 target_point.y = center[1]
-                aligned_depth = align_depth(depth_image, depth_K, cv_ColorImage, rgb_K, cam2cam_transform)    
+                aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, self.get_transformation())    
                 target_point.z = aligned_depth[center[0], center[1]]
                 self.obj_coord_publisher(target_point)
-
-                # NEED DEPTH CHANGES
 
                 # State transition
                 self.drive_state_publisher.publish(String("go"))
@@ -176,16 +227,12 @@ class ScanApproachNode(Node):
             center = self.obj_detect.find_center(img_bytes, object.name.lower())
             
             if center is not None:
-                # msg = Twist()
-                # msg.linear.x = 0.5  # Set linear velocity (forward)
-                # self.mobile_base_vel_publisher.publish(msg)
-
                 target_point = Point()
                 target_point.x = center[0]
                 target_point.y = center[1]
+                aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, self.get_transformation())    
+                target_point.z = aligned_depth[center[0], center[1]]
                 self.obj_coord_publisher(target_point)
-
-                # NEED DEPTH CHANGES
 
                 # State transition
                 self.drive_state_publisher.publish(String("go")) # Stop in btw for carefulness
@@ -208,32 +255,38 @@ class ScanApproachNode(Node):
             else:
                 self.state_var = "Init"
 
+def quaternion_to_rotation_matrix(quaternion):
+    """
+    Converts a quaternion to a rotation matrix.
+
+    Args:
+        quaternion (np.array): A numpy array of shape (4,) representing the quaternion in the form [w, x, y, z].
+
+    Returns:
+        np.array: A 3x3 numpy array representing the rotation matrix.
+    """
+    w, x, y, z = quaternion
+    
+    # Compute the rotation matrix elements
+    r00 = 1 - 2*y**2 - 2*z**2
+    r01 = 2*x*y - 2*w*z
+    r02 = 2*x*z + 2*w*y
+    r10 = 2*x*y + 2*w*z
+    r11 = 1 - 2*x**2 - 2*z**2
+    r12 = 2*y*z - 2*w*x
+    r20 = 2*x*z - 2*w*y
+    r21 = 2*y*z + 2*w*x
+    r22 = 1 - 2*x**2 - 2*y**2
+    
+    # Construct the rotation matrix
+    rotation_matrix = np.array([[r00, r01, r02],
+                                [r10, r11, r12],
+                                [r20, r21, r22]])
+    return rotation_matrix
+
 if __name__ == '__main__':
     rclpy.init()
-    depth_K = (360.01, 360.01, 243.87, 137.92)
-    rgb_K = (1297.67, 1298.63, 620.91, 238.28)
-    cam2cam_transform = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
     node = ScanApproachNode()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
-    
-    # depth = cv2.imread("depth.png", cv2.IMREAD_UNCHANGED)
-    # rgb = cv2.imread("rgb.png")
-
-    # # define images with created node
-    # aligned_depth = align_depth(depth, depth_K, rgb, rgb_K, cam2cam_transform)
-
-    # x,y = node.ScanImage
-
-    # desired_depth = aligned_depth[x,y]
-    # max_depth_thres = 3 # m
-    # min_depth_thres = .5 # m
-    # while desired_depth >= max_depth_thres or desired_depth <= min_depth_thres: 
-    #     if desired_depth >= max_depth_thres:
-    #         pass # approach the object
-    #     else:
-    #         pass # grab 
-    # push depth, x, y to navigation
-
-

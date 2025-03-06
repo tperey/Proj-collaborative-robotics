@@ -87,12 +87,9 @@ def align_depth(depth: np.ndarray, depth_K: Tuple[float,float,float,float], rgb:
     :return: aligned depth image
     """
     
-    old_fx, old_fy, old_cx, old_cy = depth_K
-    new_fx, new_fy, new_cx, new_cy = rgb_K
-    
     # Constructing the old and new intrinsics matrices
-    K_old = np.array([[old_fx, 0, old_cx], [0, old_fy, old_cy], [0, 0, 1]])
-    K_new = np.array([[new_fx, 0, new_cx], [0, new_fy, new_cy], [0, 0, 1]])
+    K_old = depth_K
+    K_new = rgb_K
 
     # conver the instrinsics of the depth camera to the intrinsics of the rgb camera.
     depth = convert_intrinsics(depth, K_old, K_new, new_size=(rgb.shape[1], rgb.shape[0]))
