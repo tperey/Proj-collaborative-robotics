@@ -154,7 +154,7 @@ class ScanApproachNode(Node):
     
     def ScanImage(self,imageMessage):
 
-        self.get_logger().info('Camera callback triggered')
+        #self.get_logger().info('Camera callback triggered')
 
         """ GENERAL IMAGE PROCESSING - Get objects """
         cv_ColorImage = self.bridge.imgmsg_to_cv2(imageMessage, desired_encoding='passthrough')
@@ -184,12 +184,12 @@ class ScanApproachNode(Node):
                 # Directly command
                 rotatemsg = Twist()
                 rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
-                rotatemsg.angular = Vector3(x=0.0, y=0.0, z=5.0) # Just rotate
+                rotatemsg.angular = Vector3(x=0.0, y=0.0, z=1.0) # Just rotate
 
                 #self.base_twist_publisher.publish(rotatemsg)
                 self.sim_base_publisher.publish(rotatemsg)
 
-                self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
+                #self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
 
             else:
 
@@ -203,11 +203,11 @@ class ScanApproachNode(Node):
             gripperstate_to_post = String()
             gripperstate_to_post.data = "wait"
             self.gripper_state_publisher.publish(gripperstate_to_post)
-            self.get_logger().info(f'Moved gripper in sim to wait')
+            #self.get_logger().info(f'Moved gripper to wait')
 
             ### OBJECT LOCALIZATION ###
             for object in objects:
-                print("Detected object", object.name.lower())
+                self.get_logger().info(f'Detected object {object.name.lower()}')
 
                 # If have desired object
                 if object.name.lower() == self.desiredObject:
