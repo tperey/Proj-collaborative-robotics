@@ -1,14 +1,13 @@
-
 #!/usr/bin/env python3
 
 import rclpy
 import numpy as np
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, Point, Vector3
-from std_msgs import String
+from std_msgs.msg import String
 from interbotix_xs_modules.xs_robot.locobot import InterbotixLocobotXS
 
-class Driver(Node):
+class Sable_Driver(Node):
     def __init__(self):
         super().__init__('driver_node')
          # Declare the parameter 'use_sim' with a default value of ***TRUE***
@@ -21,10 +20,7 @@ class Driver(Node):
         self.get_logger().info(f"use_sim parameter set to: {self.use_sim}")
 
         """ PUBLISHERS """
-        if self.use_sim:
-            self.twist_publisher = self.create_publisher(Twist,"/locobot/diffdrive_controller/cmd_vel_unstamped", 1) #this is the topic we will publish to in order to move the base
-        else:
-            self.twist_publisher = self.create_publisher(Twist, '/locobot/diffdrive_controller/cmd_vel_unstamped', 10)
+        self.twist_publisher = self.create_publisher(Twist,"/locobot/diffdrive_controller/cmd_vel_unstamped", 1) #this is the topic we will publish to in order to move the base in sim
 
         """ SUBSCRIBERS """
         self.drive_state_subscriber = self.create_subscription(
@@ -79,7 +75,17 @@ class Driver(Node):
             self.locobot.base.command_velocity(vel)
 
         elif msg.data == "turn":
-            self.locobot.base.command_velocity_xyaw(0,0.2)
+            if self.use_sim:
+                # In sim, Directly command
+                rotatemsg = Twist()
+                rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
+                rotatemsg.angular = Vector3(x=0.0, y=0.0, z=2.0) # Just rotate
+
+                self.twist_publisher.publish(rotatemsg)
+
+                self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
+            else:
+                self.locobot.base.command_velocity_xyaw(0,0.2)
 
     def project_goal_callback(self,msg):
         self.get_logger().info(f"Received project goal : {msg.info()}")
@@ -92,7 +98,7 @@ class Driver(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    node = Driver()
+    node = Sable_Driver()
     rclpy.spin(node)
 
     node.destroy_node()

@@ -209,23 +209,21 @@ class Sable_ScanApproachNode(Node):
             
         if self.state_var == "RotateFind":
             ### BASE - Ensure continuous rotation ###
-            if self.use_sim:
-                # Directly command
-                rotatemsg = Twist()
-                rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
-                rotatemsg.angular = Vector3(x=0.0, y=0.0, z=2.0) # Just rotate
+            # if self.use_sim:
+            #     # Directly command
+            #     rotatemsg = Twist()
+            #     rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
+            #     rotatemsg.angular = Vector3(x=0.0, y=0.0, z=2.0) # Just rotate
 
-                #self.base_twist_publisher.publish(rotatemsg)
-                self.sim_base_publisher.publish(rotatemsg)
+            #     #self.base_twist_publisher.publish(rotatemsg)
+            #     self.sim_base_publisher.publish(rotatemsg)
 
-                #self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
-            else:
-
-                drivestate_to_post = String()
-                drivestate_to_post.data = "turn"
-                self.drive_state_publisher.publish(drivestate_to_post)
-
-                self.get_logger().info(f'Rotate base')
+            #     #self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
+            # else:
+            drivestate_to_post = String()
+            drivestate_to_post.data = "turn"
+            self.drive_state_publisher.publish(drivestate_to_post)
+            #self.get_logger().info(f'Rotate base')
 
             ### ARM - ensure out of camera view ###
             gripperstate_to_post = String()
