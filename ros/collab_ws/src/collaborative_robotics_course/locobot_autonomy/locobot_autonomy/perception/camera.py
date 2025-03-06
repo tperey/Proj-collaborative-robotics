@@ -217,9 +217,18 @@ class ScanApproachNode(Node):
 
                 # If have desired object
                 if object.name.lower() == self.desiredObject:
+                    
+                    # State transition
+                    change_drive_to = String("turn")
+                    self.drive_state_publisher.publish(change_drive_to) # Stop in btw for carefullness
+                    while (center := self.obj_detect.find_center(content2, object.name.lower())) is not None:
+                        # Unpack the result
+                        x_pixel, y_pixel = center
+
+                    change_drive_to = String("stop")
+                    self.drive_state_publisher.publish(change_drive_to) # Stop in btw for carefullness                  
 
                     # Post its position
-                    x_pixel, y_pixel = self.obj_detect.find_center(content2,object.name.lower())
                     # msg = Twist()
                     # msg.linear.x = 0.5  # Set linear velocity (forward)
                     # self.mobile_base_vel_publisher.publish(msg)
@@ -233,10 +242,6 @@ class ScanApproachNode(Node):
                     #return x_pixel, y_pixel 
 
                     # NEED DEPTH CHANGES
-
-                    # State transition
-                    change_drive_to = String("go")
-                    self.drive_state_publisher.publish(change_drive_to) # Stop in btw for carefullness
 
                     # Don't change gripper
 
@@ -253,17 +258,37 @@ class ScanApproachNode(Node):
                 # If have desired object
                 if object.name.lower() == self.desiredObject:
 
+
+                    # State transition
+                    change_drive_to = String("go")
+                    self.drive_state_publisher.publish(change_drive_to) # Stop in btw for carefullness
+
                     # Post its position
                     x_pixel, y_pixel = self.obj_detect.find_center(content2,object.name.lower())
+                    z = object_depth # should be implmented
+                    target_point = Point()
+
+                    while object_depth := self. update_object_depth > 0.1 :
+                        target_point.x = x_pixel
+                        target_point.y = y_pixel
+                        target_point.z = object_depth
+                        #self.target_publisher.publish(target_point)
+                        self.obj_coord_publisher(target_point)
+                        
+                    change_drive_to = String("stop")
+                    self.drive_state_publisher.publish(change_drive_to) # Stop in btw for carefullness                        
+
                     # msg = Twist()
                     # msg.linear.x = 0.5  # Set linear velocity (forward)
                     # self.mobile_base_vel_publisher.publish(msg)
 
-                    target_point = Point()
                     target_point.x = x_pixel
                     target_point.y = y_pixel
+                    target_point.z = object_depth
                     #self.target_publisher.publish(target_point)
                     self.obj_coord_publisher(target_point)
+
+                    self.state_var = "Manipulation"
                     
                     #return x_pixel, y_pixel 
 
