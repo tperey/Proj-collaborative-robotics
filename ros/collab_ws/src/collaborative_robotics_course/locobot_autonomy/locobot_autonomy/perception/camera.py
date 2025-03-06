@@ -23,6 +23,7 @@ from geometry_msgs.msg import PoseStamped
 from rclpy.qos import qos_profile_sensor_data, QoSProfile 
 from verbal import SpeechTranscriber
 from find_center import VisionObjectDetector
+import time
 #import align_depth
 
 #json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
@@ -40,7 +41,7 @@ class ScanApproachNode(Node):
         # msg = Twist()
         # msg.angular.z = 0.5  # Set angular velocity (turn)
         # self.mobile_base_vel_publisher.publish(msg)
-        
+
         """ VISION """
         self.json_key_path ="/home/ubuntu/Desktop/LabDocker/Proj-collaborative-robotics/ros/collab_ws/src/collaborative_robotics_course/locobot_autonomy/locobot_autonomy/united-potion-452200-b1-8bf065055d29.json"
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.json_key_path
@@ -88,50 +89,40 @@ class ScanApproachNode(Node):
         self.state_var = "Init" # Initial state
         self.use_sim = False # sim for now
 
-        #self.init_timer = self.create_timer(1.0, self.initializePerception)
-
         self.get_logger().info('ScanApproachNode now running')
 
-    def initializePerception(self):
+
+        """ INIT TIMER FOR TESTING ONLY """
+        self.init_timer = self.create_timer(1.0, self.initializePerception_test)
+
+    def initializePerception_test(self):
         self.get_logger().info(f'~~~Running init')
+        ### EXECUTE INITIALIZATION in sim (only time to use this) ###
 
-        ### EXECUTE INITIALIZATION ###
-        if self.use_sim:
+        ### Gripper ###
+        # Tell gripper to move out of camera view
+        # STILL USE MANIPULATION CODE TO TEST IT
+        gripperstate_to_post = String()
+        gripperstate_to_post.data = "wait"
+        self.gripper_state_publisher.publish(gripperstate_to_post)
 
-            ### Base ### 
-            # Directly command
-            rotatemsg = Twist()
-            rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
-            rotatemsg.angular = Vector3(x=0.0, y=0.0, z=5.0) # Just rotate
+        self.get_logger().info(f'Moved gripper in sim to wait')
+        #self.get_logger().info(f'WAITING for gripper to finish!!!')
+        #time.sleep(15)
 
-            #self.base_twist_publisher.publish(rotatemsg)
-            self.sim_base_publisher.publish(rotatemsg)
 
-            self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
+        ### Base ### 
+        # Directly command
+        rotatemsg = Twist()
+        rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
+        rotatemsg.angular = Vector3(x=0.0, y=0.0, z=5.0) # Just rotate
 
-            ### Gripper ###
-            desired_pose_msg = PoseStamped() # Define pose
-            desired_pose_msg.pose.position.x = 0.1
-            desired_pose_msg.pose.position.y = 0.2
-            desired_pose_msg.pose.position.z = 0.1
-            desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
-            desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
-            desired_pose_msg.pose.orientation.z = 0.0
-            desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
+        #self.base_twist_publisher.publish(rotatemsg)
+        self.sim_base_publisher.publish(rotatemsg)
 
-            self.sim_arm_publisher.publish(desired_pose_msg) # Publish pose
+        self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
 
-            self.get_logger().info(f'Moved gripper in sim to {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}')
-
-        else:
-            ### Gripper ###
-            # Tell gripper to move out of camera view
-            gripperstate_to_post = String("wait")
-            self.gripper_state_publisher.publish(gripperstate_to_post)
-
-            ### Arm ###
-            drivestate_to_post = String("turn")
-            self.drive_state_publisher.publish(drivestate_to_post)
+        #self.init_timer.cancel() # Only run once
     
     # def test_callback(self):
     #     self.get_logger().info('TIMER TESTER callback triggered')
@@ -198,11 +189,13 @@ class ScanApproachNode(Node):
             else:
                 ### Gripper ###
                 # Tell gripper to move out of camera view
-                gripperstate_to_post = String("wait")
+                gripperstate_to_post = String()
+                gripperstate_to_post.data = "wait"
                 self.gripper_state_publisher.publish(gripperstate_to_post)
 
                 ### Arm ###
-                drivestate_to_post = String("turn")
+                drivestate_to_post = String()
+                drivestate_to_post.data = "turn"
                 self.drive_state_publisher.publish(drivestate_to_post)
             
             self.state_var = "RotateFind"
@@ -235,7 +228,8 @@ class ScanApproachNode(Node):
                     # NEED DEPTH CHANGES
 
                     # State transition
-                    change_drive_to = String("go")
+                    change_drive_to = String()
+                    change_drive_to.data = "go"
                     self.drive_state_publisher.publish(change_drive_to) # Stop in btw for carefullness
 
                     # Don't change gripper

@@ -30,6 +30,8 @@ from rclpy.qos import qos_profile_sensor_data, QoSProfile
 
 import numpy as np
 
+import time
+
 # POSITIONS
 # PER TF LIST, standard T matrix from locobot/base_link to locobot/ee_gripper_link is
 # R = Identity, p = [0.501, 0, 0.429]
@@ -61,17 +63,17 @@ class ManipulationNode(Node):
         self.gripper_state  = "wait" # Start out waiting
 
         """ SUBSCRIBERS """
-        self.goal_coord_subscriber = self.create_subscriber( # For storing desired object 
+        self.goal_coord_subscriber = self.create_subscription( # For storing desired object 
             Point,
             '/project_goal', # IN BASE_LINK FRAME
-            goal_coord_callback, # Updates class var for desired loc coords
+            self.goal_coord_callback, # Updates class var for desired loc coords
             10 # Just chosen randomly
         )
 
-        self.gripper_state_subscriber = self.create_subscriber( # For gripper state
+        self.gripper_state_subscriber = self.create_subscription( # For gripper state
             String,
             '/gripper_state',
-            gripper_state_callback, # Drives the gripper
+            self.gripper_state_callback, # Drives the gripper
             10 # Just chosen randomly
         )
 
@@ -102,11 +104,28 @@ class ManipulationNode(Node):
     def gripper_state_callback(self, msg):
 
         gripper_state = msg.data # Get string from msg
-        gripper_state = gripper_state.to_lower() # Lowercase for consistency
+        gripper_state = gripper_state.lower() # Lowercase for consistency
 
         if gripper_state == "wait":
-            # Do nothing
-            pass
+            # Move arm out of the way
+            """ Convert stored target_pose into a msg to post """
+            desired_pose_msg = PoseStamped() # Define pose
+            #position
+            desired_pose_msg.pose.position.x = 0.1
+            desired_pose_msg.pose.position.y = 0.2
+            desired_pose_msg.pose.position.z = 0.1
+            #orientation - always facing down
+            desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
+            desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
+            desired_pose_msg.pose.orientation.z = 0.0
+            desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
+
+            """ Move arm using publisher """
+            self.arm_publisher.publish(desired_pose_msg) # Publish pose
+            self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
+            # Code should be inherently blocking
+            # No need to sleep, since wont go again for awhile
+
         elif gripper_state == "grab": # Now, actually grab position
 
             """ Convert stored target_pose into a msg to post """
@@ -125,6 +144,8 @@ class ManipulationNode(Node):
             self.arm_publisher.publish(desired_pose_msg) # Publish pose
             self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
             # Code should be inherently blocking
+
+            time.sleep(5) # Pause to ensure got there
 
             """ Close gripper using publisher"""
             self.get_logger().info(f"Got to position! Closing gripper...")
