@@ -266,45 +266,8 @@ class Sable_ScanApproachNode(Node):
                         # ***Determined from testing which indicated OOB indexing
 
                         ### DEPTH ALIGNMENT ###
-
-                        # Granularity, for debugging
-
-                        # conver the instrinsics of the depth camera to the intrinsics of the rgb camera.
-                        # K_old = self.depth_K
-                        # self.get_logger().info(f'depth_K = {K_old}')
-                        # K_new = self.rgb_K
-                        # self.get_logger().info(f'rgb_K = {K_new}')
-                        # aligned_depth = convert_intrinsics(depth_image, K_old, K_new, new_size=(cv_ColorImage.shape[1], cv_ColorImage.shape[0]))
-                        # self.get_logger().info(f"Convert intrinsics dtype: {aligned_depth.dtype}, min: {aligned_depth.min()}, max: {aligned_depth.max()}")
-
-                        # # warp the depth image to the rgb image with the transformation matrix from camera to camera.
-                        # cam2cam_transform = self.get_transformation()
-                        # self.get_logger().info(f'Transformation Matrix:\n{cam2cam_transform}')
-                        # #aligned_depth = warp_image(aligned_depth, K_new, cam2cam_transform[:3, :3], cam2cam_transform[:3, 3])  
-                        # """ PROBLEM IS WITH WARP_IMAGE FUNCTION """
-
-                        # # Compute the homography matrix
-                        # force_R = np.array([
-                        #     [0, 0, 1],
-                        #     [-1, 0, 0],
-                        #     [0, -1, 0]
-                        # ])
-                        # self.get_logger().info(f"Forced R = \n{force_R}")
-                        # force_t = np.array([0,0,0])
-                        # self.get_logger().info(f'Forced t = \n{force_t}')
-                        # H = compute_homography(K_new, force_R, force_t) #cam2cam_transform[:3, :3], cam2cam_transform[:3, 3])
-                        # self.get_logger().info(f"Homography = \n{H}")
-
-                        # # Warp the image using the homography
-                        # height, width = aligned_depth.shape[:2]
-                        # aligned_depth = cv2.warpPerspective(aligned_depth, H, (width, height))
-                        # self.get_logger().info(f"Final aligned_depth dtype: {aligned_depth.dtype}, min: {aligned_depth.min()}, max: {aligned_depth.max()}")
-
                         aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, self.get_transformation())
-                        self.get_logger().info(f'Int target (x,y): {int(target_point.x)}, {int(target_point.y)}')
-                        self.get_logger().info(f'Expected z: {aligned_depth[int(target_point.x), int(target_point.y)]}')
                         target_point.z = float(aligned_depth[int(target_point.x), int(target_point.y)]) # Need integer conversion for indexing, then float for Point publication
-                        self.get_logger().info(f'Actual z after float: {target_point.z}')
                         # ***Consider
                         # x, y = round(center[0]), round(center[1])
                         # target_point.z = aligned_depth[int(y), int(x)]
@@ -317,12 +280,7 @@ class Sable_ScanApproachNode(Node):
                         #self.drive_state_publisher.publish(drivestate_to_post)
 
                         ### LOGGING (esp for debugging) ###
-                        # self.get_logger().info(f'Color shape: {cv_ColorImage.shape}')
-                        # self.get_logger().info(f'Original depth shape: {depth_image.shape}')
-                        # self.get_logger().info(f'ALIGNED depth shape: {aligned_depth.shape}')
-                        # self.get_logger().info(f"Depth dtype: {depth_image.dtype}, min: {depth_image.min()}, max: {depth_image.max()}")
-                        # self.get_logger().info(f"ALIGNED depth dtype: {aligned_depth.dtype}, min: {aligned_depth.min()}, max: {aligned_depth.max()}")
-                        # self.get_logger().info(f'!!! Desired obj at {target_point.x}, {target_point.y}, {target_point.z}')
+                        self.get_logger().info(f'!!! Desired obj at {target_point.x}, {target_point.y}, {target_point.z}')
 
                         # Don't change gripper
 
@@ -412,3 +370,48 @@ if __name__ == '__main__':
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
+
+
+""" DEBUGGING CODE PUT HERE FOR REF """
+# Granularity, for debugging
+
+                        # conver the instrinsics of the depth camera to the intrinsics of the rgb camera.
+                        # K_old = self.depth_K
+                        # self.get_logger().info(f'depth_K = {K_old}')
+                        # K_new = self.rgb_K
+                        # self.get_logger().info(f'rgb_K = {K_new}')
+                        # aligned_depth = convert_intrinsics(depth_image, K_old, K_new, new_size=(cv_ColorImage.shape[1], cv_ColorImage.shape[0]))
+                        # self.get_logger().info(f"Convert intrinsics dtype: {aligned_depth.dtype}, min: {aligned_depth.min()}, max: {aligned_depth.max()}")
+
+                        # # warp the depth image to the rgb image with the transformation matrix from camera to camera.
+                        # cam2cam_transform = self.get_transformation()
+                        # self.get_logger().info(f'Transformation Matrix:\n{cam2cam_transform}')
+                        # #aligned_depth = warp_image(aligned_depth, K_new, cam2cam_transform[:3, :3], cam2cam_transform[:3, 3])  
+                        # """ PROBLEM IS WITH WARP_IMAGE FUNCTION """
+
+                        # # Compute the homography matrix
+                        # force_R = np.array([
+                        #     [0, 0, 1],
+                        #     [-1, 0, 0],
+                        #     [0, -1, 0]
+                        # ])
+                        # self.get_logger().info(f"Forced R = \n{force_R}")
+                        # force_t = np.array([0,0,0])
+                        # self.get_logger().info(f'Forced t = \n{force_t}')
+                        # H = compute_homography(K_new, force_R, force_t) #cam2cam_transform[:3, :3], cam2cam_transform[:3, 3])
+                        # self.get_logger().info(f"Homography = \n{H}")
+
+                        # # Warp the image using the homography
+                        # height, width = aligned_depth.shape[:2]
+                        # aligned_depth = cv2.warpPerspective(aligned_depth, H, (width, height))
+                        # self.get_logger().info(f"Final aligned_depth dtype: {aligned_depth.dtype}, min: {aligned_depth.min()}, max: {aligned_depth.max()}")
+
+                                                # self.get_logger().info(f'Color shape: {cv_ColorImage.shape}')
+                        # self.get_logger().info(f'Original depth shape: {depth_image.shape}')
+                        # self.get_logger().info(f'ALIGNED depth shape: {aligned_depth.shape}')
+                        # self.get_logger().info(f"Depth dtype: {depth_image.dtype}, min: {depth_image.min()}, max: {depth_image.max()}")
+                        # self.get_logger().info(f"ALIGNED depth dtype: {aligned_depth.dtype}, min: {aligned_depth.min()}, max: {aligned_depth.max()}")
+
+                        # self.get_logger().info(f'Int target (x,y): {int(target_point.x)}, {int(target_point.y)}')
+                        # self.get_logger().info(f'Expected z: {aligned_depth[int(target_point.x), int(target_point.y)]}')
+                        # self.get_logger().info(f'Actual z after float: {target_point.z}')
