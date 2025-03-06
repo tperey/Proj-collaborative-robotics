@@ -249,8 +249,17 @@ class ScanApproachNode(Node):
             else:
                 # Can't see object anymore
                 self.state_var = "RotateFind"
-            
 
+        if self.state_var == "Grasp":
+            self.drive_state_publisher.publish(String("stop"))
+            self.gripper_state_publisher.publish(String("grab"))
+            if self.destination is not None:
+                # Retrieve task.
+                self.state_var = "RotateFind"
+                self.desiredObject = self.destination
+                self.destination = None
+            else:
+                self.state_var = "Init"
 
         #msg = Twist()
         #msg.angular.z = 0.5 # turn 
