@@ -32,6 +32,8 @@ from align_depth import align_depth
 
 #json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
 
+DISTANCE_THRESHOLD = 0.5
+
 class ScanApproachNode(Node):
     def __init__(self):
         super().__init__("scan_approach_node")
@@ -76,16 +78,18 @@ class ScanApproachNode(Node):
         camera_sub = ApproximateTimeSynchronizer([rgb_camera, depth_camera], 10, 1)
         camera_sub.registerCallback(self.ScanImage)
 
-        rgb_cam_info = self.create_subscription(
+        self.create_subscription(
             CameraInfo,
             '/locobot/camera/camera_info',
             self.rgb_info_callback,
             10)
-        depth_cam_info = self.create_subscription(
+        self.create_subscription(
             CameraInfo,
             '/locobot/camera/depth/camera_info', #check topic name...
             self.depth_info_callback,
             10)
+        
+        self.create_subscription(String, "/gripper_success", self.gripper_callback, 10)
 
         self.get_logger().info('Subscribers created')
 
@@ -143,6 +147,16 @@ class ScanApproachNode(Node):
         except tf2_ros.ExtrapolationException:
             self.get_logger().error('Extrapolation error.')
     
+    def gripper_callback(self, msg):
+        if msg.data == "Success":
+            if self.destination is not None:
+                # Retrieve task.
+                self.state_var = "RotateFind"
+                self.desiredObject = self.destination
+                self.destination = None
+            else:
+                self.state_var = "Init"
+    
     def ScanImage(self, rgb_imgmsg, depth_imgmsg):
 
         self.get_logger().info('Camera callback triggered')
@@ -163,7 +177,10 @@ class ScanApproachNode(Node):
             #     response = self.gemini.generate_content("In the given voice transcript, where does the user want to have the object placed? "+\
             #                                             "Return only the destination in lowercase and do not include any whitespaces, punctuation, or new lines. "+\
             #                                                 "Here is the voice transcript: " + transcribed_audio)
-            # self.destination = response.text
+            #     self.destination = response.text
+            # else:
+            #     #Not sure how to define return point when retrieving - "person" will probably be too many results.
+            #     self.destination = None
 
             ### Gripper ###
             # Tell gripper to move out of camera view
@@ -240,6 +257,9 @@ class ScanApproachNode(Node):
                 # Don't change gripper
                 
                 # If depth is close enough, switch to next state
+                if target_point.z < DISTANCE_THRESHOLD:
+                    self.state_var = "Grasp"
+
             else:
                 # Can't see object anymore
                 self.state_var = "RotateFind"
@@ -247,13 +267,6 @@ class ScanApproachNode(Node):
         if self.state_var == "Grasp":
             self.drive_state_publisher.publish(String("stop"))
             self.gripper_state_publisher.publish(String("grab"))
-            if self.destination is not None:
-                # Retrieve task.
-                self.state_var = "RotateFind"
-                self.desiredObject = self.destination
-                self.destination = None
-            else:
-                self.state_var = "Init"
 
 def quaternion_to_rotation_matrix(quaternion):
     """
