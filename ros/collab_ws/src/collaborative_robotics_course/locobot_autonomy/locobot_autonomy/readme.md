@@ -24,5 +24,6 @@ NOTES ON CODE CHANGES
 * Several syntactical to interface with ROS2 msg objects correctly
 * Testing showed images are indexed with origin at top left, positive x right, positive y down. So image[y,x]!
 * Testing showed align_depth does not handle pure rotations (which don't alter image) well. Added guards for this to align_depth function. Also, right now, image and depth don't really need aligning, so not confirmed that this code works.
+* Driver node likely needs edits to work outside sim.
 * Testing showed K matrix missing centerpoints. Altered localization_tp to account for this.
 * Controller can be tuned in node_driver
