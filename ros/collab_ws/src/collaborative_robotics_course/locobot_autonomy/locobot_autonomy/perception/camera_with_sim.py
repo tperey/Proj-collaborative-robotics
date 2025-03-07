@@ -64,7 +64,7 @@ class Sable_ScanApproachNode(Node):
 
         """ PUBLISHERS """
         self.drive_state_publisher = self.create_publisher(String, "/drive_state", 10)
-        self.obj_coord_publisher = self.create_publisher(Point, "/obj_coord", 10)
+        self.obj_coord_publisher = self.create_publisher(Point, "/target_point", 10)
         self.gripper_state_publisher = self.create_publisher(String, "/gripper_state", 10)
 
         # Direct commands
@@ -109,9 +109,9 @@ class Sable_ScanApproachNode(Node):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         """ STATE MACHINE """
-        # self.state_var = "Init" # Initial state
+        self.state_var = "Init" # Initial state
         # self.use_sim = False # sim for now
-        self.state_var = "RotateFind"
+        #self.state_var = "RotateFind"
 
         self.get_logger().info('ScanApproachNode now running')
 
@@ -198,28 +198,7 @@ class Sable_ScanApproachNode(Node):
             #     #Not sure how to define return point when retrieving - "person" will probably be too many results.
             #     self.destination = None
 
-            ### Gripper ###
-            # Tell gripper to move out of camera view
-            self.gripper_state_publisher.publish(String("wait"))
-
-            ### Arm ###
-            self.drive_state_publisher.publish(String("turn"))
-            
-            self.state_var = "RotateFind"
-            
-        if self.state_var == "RotateFind":
             ### BASE - Ensure continuous rotation ###
-            # if self.use_sim:
-            #     # Directly command
-            #     rotatemsg = Twist()
-            #     rotatemsg.linear = Vector3(x=0.0, y=0.0, z=0.0)
-            #     rotatemsg.angular = Vector3(x=0.0, y=0.0, z=2.0) # Just rotate
-
-            #     #self.base_twist_publisher.publish(rotatemsg)
-            #     self.sim_base_publisher.publish(rotatemsg)
-
-            #     #self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
-            # else:
             drivestate_to_post = String()
             drivestate_to_post.data = "turn"
             self.drive_state_publisher.publish(drivestate_to_post)
@@ -229,7 +208,23 @@ class Sable_ScanApproachNode(Node):
             gripperstate_to_post = String()
             gripperstate_to_post.data = "wait"
             self.gripper_state_publisher.publish(gripperstate_to_post)
-            #self.get_logger().info(f'Moved gripper to wait')
+            self.get_logger().info(f'Moved gripper to wait in INIT')
+            
+            self.state_var = "RotateFind"
+            
+        if self.state_var == "RotateFind":
+            ### BASE - Ensure continuous rotation ###
+            drivestate_to_post = String()
+            drivestate_to_post.data = "turn"
+            self.drive_state_publisher.publish(drivestate_to_post)
+            #self.get_logger().info(f'Rotate base')
+
+            ### ARM - ensure out of camera view ###
+            # ***From Trevor - Only command once, on init. Doing it a ton is buggy. 
+            # gripperstate_to_post = String()
+            # gripperstate_to_post.data = "wait"
+            # self.gripper_state_publisher.publish(gripperstate_to_post)
+            # #self.get_logger().info(f'Moved gripper to wait')
 
             ### GENERAL IMAGE PROCESSING - Get objects ###
             cv_ColorImage = self.bridge.imgmsg_to_cv2(rgb_imgmsg, desired_encoding='bgr8') # passthrough?
@@ -243,7 +238,6 @@ class Sable_ScanApproachNode(Node):
             visionImage = vision.Image(content=img_bytes)
             response = self.client.object_localization(image=visionImage) # Send the image to the API for object localization
             objects = response.localized_object_annotations # Extract localized object annotations
-            
             #self.get_logger().info(f'...Looking for {self.desiredObject.lower()}')
             
             for object in objects: # Only run if obj detected. Alos, need to check all objects for desired
@@ -257,32 +251,36 @@ class Sable_ScanApproachNode(Node):
                         target_point = Point()
 
                         # ***From Trevor - I think cv is in (y,x) format, esp for bgr8. So center ouptuts (y,x), and need to flip
-                        # target_point.x = center[0]
-                        # target_point.y = center[1]
-                        target_point.x = center[1]
-                        target_point.y = center[0]
-                        # ***Determined from testing which indicated OOB indexing
+                        target_point.x = center[0]
+                        target_point.y = center[1]
+                        # ***Determined from testing that sometimes obj detected before center in frame
+                        if target_point.x > 600.0:
+                            target_point.x = 600.0
+                        elif target_point.x < 0.0:
+                            target_point.x = 0.0
+                        
+                        if target_point.y > 480.0:
+                            target_point.y = 480.0
+                        elif target_point.y < 0.0:
+                            target_point.y = 0.0
 
                         ### DEPTH ALIGNMENT ###
-                        aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, self.get_transformation())
-                        target_point.z = float(aligned_depth[int(target_point.x), int(target_point.y)]) # Need integer conversion for indexing, then float for Point publication
-                        # ***Consider
-                        # x, y = round(center[0]), round(center[1])
-                        # target_point.z = aligned_depth[int(y), int(x)]
-                        # ***for slighly improved accuracy
-                        self.obj_coord_publisher.publish(target_point)
+                        if (self.depth_K is not None) and (self.rgb_K is not None):
+                            aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, self.get_transformation())
+                            target_point.z = float(aligned_depth[int(target_point.y), int(target_point.x)]) # Need integer conversion for indexing, then float for Point publication
+                            #***From Trevor - from testing, images are indexed [row, col] = [y, x]!
+                            self.obj_coord_publisher.publish(target_point)
 
-                        ### STATE TRANSITION ###
-                        drivestate_to_post = String()
-                        drivestate_to_post.data = "turn"
-                        #self.drive_state_publisher.publish(drivestate_to_post)
+                            ### STATE TRANSITION ###
+                            # Don't change gripper
+                            self.state_var = "Drive2Obj"
+                            #self.state_var = "Grasp" # Go to grasp to stop for testing
 
-                        ### LOGGING (esp for debugging) ###
-                        self.get_logger().info(f'!!! Desired obj at {target_point.x}, {target_point.y}, {target_point.z}')
+                            ### LOGGING (esp for debugging) ###
+                            self.get_logger().info(f'!!! Desired obj at {target_point.x}, {target_point.y}, {target_point.z}')
+                        else:
+                            self.get_logger().info("Missing K matrices :(((")
 
-                        # Don't change gripper
-
-                        #self.state_var = "Drive2Obj"
                     else:
                         #self.drive_state_publisher.publish(String("turn")) #<-- Handled above
 
@@ -290,49 +288,142 @@ class Sable_ScanApproachNode(Node):
                         pass
         
         elif self.state_var == "Drive2Obj":
-            ### DRIVE TOWARDS OBJECT ###
-            # Only post once, on transition
+            ### BASE - Now, drive towards object ###
+            drivestate_to_post = String()
+            drivestate_to_post.data = "go"
+            self.drive_state_publisher.publish(drivestate_to_post)
+            self.get_logger().info(f'Go base')
 
-            """ GENERAL IMAGE PROCESSING - Get objects """
-            cv_ColorImage = self.bridge.imgmsg_to_cv2(rgb_imgmsg, desired_encoding='passthrough')
-            depth_image = self.bridge.imgmsg_to_cv2(depth_imgmsg, desired_encoding='mono8')
+            ### ARM - ensure out of camera view ###
+            # ***From Trevor - Only command once, on init. Doing it a ton is buggy. 
+            # gripperstate_to_post = String()
+            # gripperstate_to_post.data = "wait"
+            # self.gripper_state_publisher.publish(gripperstate_to_post)
+            # #self.get_logger().info(f'Moved gripper to wait')
 
+            ### GENERAL IMAGE PROCESSING - Get objects ###
+            cv_ColorImage = self.bridge.imgmsg_to_cv2(rgb_imgmsg, desired_encoding='bgr8') # passthrough?
+            depth_image = self.bridge.imgmsg_to_cv2(depth_imgmsg, desired_encoding='passthrough') # mono8? bgr8?
             # convert to depth
             # May need to convert image to bytes first with
             success, encoded_image = cv2.imencode('.jpg', cv_ColorImage)
             img_bytes = encoded_image.tobytes()
 
-            ### ROTATION and ARM ###
-            # Only change on transition
-
             ### OBJECT LOCALIZATION ###
-            center = self.obj_detect.find_center(img_bytes, object.name.lower())
+            visionImage = vision.Image(content=img_bytes)
+            response = self.client.object_localization(image=visionImage) # Send the image to the API for object localization
+            objects = response.localized_object_annotations # Extract localized object annotations
+            #self.get_logger().info(f'...Looking for {self.desiredObject.lower()}')
             
-            if center is not None:
-                target_point = Point()
-                target_point.x = center[0]
-                target_point.y = center[1]
-                aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, self.get_transformation())    
-                target_point.z = aligned_depth[center[0], center[1]]
-                self.obj_coord_publisher(target_point)
-
-                # State transition
-                self.drive_state_publisher.publish(String("go")) # Stop in btw for carefulness
-
-                # Don't change gripper
+            for object in objects: # Only run if obj detected. Alos, need to check all objects for desired
+                self.get_logger().info(f'Detected object {object.name.lower()}')
                 
-                # If depth is close enough, switch to next state
-                if target_point.z < DISTANCE_THRESHOLD:
-                    self.state_var = "Grasp"
+                if object.name.lower() == self.desiredObject.lower(): # Only run if desired object. Use "name" to detect
+                    center = self.obj_detect.find_center(img_bytes, object.name.lower())
 
+                    if center is not None:
+                        self.get_logger().info("!!! Desired obj found !!!")
+                        target_point = Point()
+
+                        # ***From Trevor - I think cv is in (y,x) format, esp for bgr8. So center ouptuts (y,x), and need to flip
+                        target_point.x = center[0]
+                        target_point.y = center[1]
+                        # ***Determined from testing that sometimes obj detected before center in frame
+                        if target_point.x > 600.0:
+                            target_point.x = 600.0
+                        elif target_point.x < 0.0:
+                            target_point.x = 0.0
+                        
+                        if target_point.y > 480.0:
+                            target_point.y = 480.0
+                        elif target_point.y < 0.0:
+                            target_point.y = 0.0
+
+                        ### DEPTH ALIGNMENT ###
+                        if (self.depth_K is not None) and (self.rgb_K is not None):
+                            aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, self.get_transformation())
+                            target_point.z = float(aligned_depth[int(target_point.y), int(target_point.x)]) # Need integer conversion for indexing, then float for Point publication
+                            #***From Trevor - from testing, images are indexed [row, col] = [y, x]!
+                            self.obj_coord_publisher.publish(target_point)
+
+                            ### STATE TRANSITION ###
+                            # Don't change gripper
+
+                            # # If depth is close enough, switch to next state
+                            # if target_point.z < DISTANCE_THRESHOLD:
+                            #     self.state_var = "Grasp"
+
+                            ### LOGGING (esp for debugging) ###
+                            self.get_logger().info(f'!!! Desired obj at {target_point.x}, {target_point.y}, {target_point.z}')
+                        else:
+                            self.get_logger().info("Missing K matrices :(((")
             else:
                 # Can't see object anymore
-                self.state_var = "RotateFind"
+                pass
+                #self.state_var = "RotateFind"
 
-        if self.state_var == "Grasp":
-            self.drive_state_publisher.publish(String("stop"))
-            self.gripper_state_publisher.publish(String("grab"))
+        elif self.state_var == "Grasp":
 
+            ### BASE - Now, drive towards object ###
+            drivestate_to_post = String()
+            drivestate_to_post.data = "stop"
+            self.drive_state_publisher.publish(drivestate_to_post)
+            self.get_logger().info(f'Stopped')
+
+            ### ARM ###
+            #self.gripper_state_publisher.publish(String("grab"))
+
+             ### GENERAL IMAGE PROCESSING - Get objects ###
+            cv_ColorImage = self.bridge.imgmsg_to_cv2(rgb_imgmsg, desired_encoding='bgr8') # passthrough?
+            depth_image = self.bridge.imgmsg_to_cv2(depth_imgmsg, desired_encoding='passthrough') # mono8? bgr8?
+            # convert to depth
+            # May need to convert image to bytes first with
+            success, encoded_image = cv2.imencode('.jpg', cv_ColorImage)
+            img_bytes = encoded_image.tobytes()
+
+            ### OBJECT LOCALIZATION ###
+            visionImage = vision.Image(content=img_bytes)
+            response = self.client.object_localization(image=visionImage) # Send the image to the API for object localization
+            objects = response.localized_object_annotations # Extract localized object annotations
+            #self.get_logger().info(f'...Looking for {self.desiredObject.lower()}')
+            
+            for object in objects: # Only run if obj detected. Alos, need to check all objects for desired
+                self.get_logger().info(f'Detected object {object.name.lower()}')
+                
+                if object.name.lower() == self.desiredObject.lower(): # Only run if desired object. Use "name" to detect
+                    center = self.obj_detect.find_center(img_bytes, object.name.lower())
+
+                    if center is not None:
+                        self.get_logger().info("!!! Desired obj found !!!")
+                        target_point = Point()
+
+                        # ***From Trevor - I think cv is in (y,x) format, esp for bgr8. So center ouptuts (y,x), and need to flip
+                        target_point.x = center[0]
+                        target_point.y = center[1]
+                        # ***Determined from testing that sometimes obj detected before center in frame
+                        if target_point.x > 600.0:
+                            target_point.x = 600.0
+                        elif target_point.x < 0.0:
+                            target_point.x = 0.0
+                        
+                        if target_point.y > 480.0:
+                            target_point.y = 480.0
+                        elif target_point.y < 0.0:
+                            target_point.y = 0.0
+
+                        ### DEPTH ALIGNMENT ###
+                        if (self.depth_K is not None) and (self.rgb_K is not None):
+                            aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, self.get_transformation())
+                            target_point.z = float(aligned_depth[int(target_point.y), int(target_point.x)]) # Need integer conversion for indexing, then float for Point publication
+                            #***From Trevor - from testing, images are indexed [row, col] = [y, x]!
+                            self.obj_coord_publisher.publish(target_point)
+
+                            ### STATE TRANSITION ###
+                            # None for now
+                        else:
+                            self.get_logger().info("Missing K matrices :(((")
+    
+            
 def quaternion_to_rotation_matrix(quaternion):
     """
     Converts a quaternion to a rotation matrix.
