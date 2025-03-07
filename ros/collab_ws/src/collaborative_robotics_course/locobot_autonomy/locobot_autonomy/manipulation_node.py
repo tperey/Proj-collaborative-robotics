@@ -47,6 +47,7 @@ class ManipulationNode(Node):
         super().__init__('ManipulationNode')
 
         """ CLASS VARIABLES """
+        self.use_sim = True
         #Obtain or specify the goal pose for end effector (ee)
         # Initialize desired object coords. Just the startup loc. 
         target_pose = Pose()
@@ -143,16 +144,20 @@ class ManipulationNode(Node):
             """ Move arm using publisher """
             self.arm_publisher.publish(desired_pose_msg) # Publish pose
             self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
-            # Code should be inherently blocking
 
             time.sleep(5) # Pause to ensure got there
 
             """ Close gripper using publisher"""
-            self.get_logger().info(f"Got to position! Closing gripper...")
-            gripper_msg = Bool()
-            gripper_msg.data = False # CLOSE gripper
-            self.gripper_publisher.publish(gripper_msg)
-            self.get_logger().info(f"Closing gripper...")
+            if self.use_sim:
+                pass
+                # Gripper doesn't work in sim
+                self.get_logger().info(f"Got to position! Would do gripper, but we are in SIM")
+            else:
+                self.get_logger().info(f"Got to position! Closing gripper...")
+                gripper_msg = Bool()
+                gripper_msg.data = False # CLOSE gripper
+                self.gripper_publisher.publish(gripper_msg)
+                self.get_logger().info(f"Closing gripper...")
 
 def main(args=None):
     rclpy.init(args=args)

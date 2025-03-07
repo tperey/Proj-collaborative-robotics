@@ -30,6 +30,8 @@ from find_center import VisionObjectDetector
 #import google.generativeai as genai
 from align_depth import align_depth, convert_intrinsics, warp_image, compute_homography
 
+import time
+
 #json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
 
 DISTANCE_THRESHOLD = 0.5
@@ -220,7 +222,7 @@ class Sable_ScanApproachNode(Node):
             #self.get_logger().info(f'Rotate base')
 
             ### ARM - ensure out of camera view ###
-            # ***From Trevor - Only command once, on init. Doing it a ton is buggy. 
+            # #***From Trevor - Only command once, on init. Doing it a ton is buggy. 
             # gripperstate_to_post = String()
             # gripperstate_to_post.data = "wait"
             # self.gripper_state_publisher.publish(gripperstate_to_post)
@@ -295,7 +297,7 @@ class Sable_ScanApproachNode(Node):
             self.get_logger().info(f'Go base')
 
             ### ARM - ensure out of camera view ###
-            # ***From Trevor - Only command once, on init. Doing it a ton is buggy. 
+            # #***From Trevor - Only command once, on init. Doing it a ton is buggy. 
             # gripperstate_to_post = String()
             # gripperstate_to_post.data = "wait"
             # self.gripper_state_publisher.publish(gripperstate_to_post)
@@ -347,14 +349,31 @@ class Sable_ScanApproachNode(Node):
                             self.obj_coord_publisher.publish(target_point)
 
                             ### STATE TRANSITION ###
-                            # Don't change gripper
+                            # If depth is close enough, switch to next state
+                            if target_point.z < DISTANCE_THRESHOLD:
+                                
+                                self.state_var = "Grasp"
 
-                            # # If depth is close enough, switch to next state
-                            # if target_point.z < DISTANCE_THRESHOLD:
-                            #     self.state_var = "Grasp"
+                                # Also immediately post a stop (for responsiveness)
+                                drivestate_to_post = String()
+                                drivestate_to_post.data = "stop"
+                                self.drive_state_publisher.publish(drivestate_to_post)
+                                self.get_logger().info(f'Stopping...')
+
+                                time.sleep(3) # Short pause to ensure stopped before sending
+
+                                # DO change gripper. For first test, only post on transition (don't flood)
+                                # Concerns with position changing, but target constantly updated, so probably ok?
+                                #***From Trevor - Only command once, on change. Doing it a ton is buggy. 
+                                gripperstate_to_post = String()
+                                gripperstate_to_post.data = "grab"
+                                self.gripper_state_publisher.publish(gripperstate_to_post)
+                                self.get_logger().info(f'Told gripper to GRAB')
+
+                                #***From Trevor - Consider only posting grab on NEXT image detection, to ensure stopped and got most recent position?
 
                             ### LOGGING (esp for debugging) ###
-                            self.get_logger().info(f'!!! Desired obj at {target_point.x}, {target_point.y}, {target_point.z}')
+                            #self.get_logger().info(f'!!! Desired obj at {target_point.x}, {target_point.y}, {target_point.z}')
                         else:
                             self.get_logger().info("Missing K matrices :(((")
             else:
@@ -364,16 +383,20 @@ class Sable_ScanApproachNode(Node):
 
         elif self.state_var == "Grasp":
 
-            ### BASE - Now, drive towards object ###
+            ### BASE - Now, ensure stop ###
             drivestate_to_post = String()
             drivestate_to_post.data = "stop"
             self.drive_state_publisher.publish(drivestate_to_post)
-            self.get_logger().info(f'Stopped')
+            #self.get_logger().info(f'Stopped')
 
             ### ARM ###
-            #self.gripper_state_publisher.publish(String("grab"))
+            # #***From Trevor - Only command once, on init. Doing it a ton is buggy. 
+            # gripperstate_to_post = String()
+            # gripperstate_to_post.data = "grab"
+            # self.gripper_state_publisher.publish(gripperstate_to_post)
+            # #self.get_logger().info(f'Moved gripper to wait')
 
-             ### GENERAL IMAGE PROCESSING - Get objects ###
+            ### GENERAL IMAGE PROCESSING - Get objects ###
             cv_ColorImage = self.bridge.imgmsg_to_cv2(rgb_imgmsg, desired_encoding='bgr8') # passthrough?
             depth_image = self.bridge.imgmsg_to_cv2(depth_imgmsg, desired_encoding='passthrough') # mono8? bgr8?
             # convert to depth
