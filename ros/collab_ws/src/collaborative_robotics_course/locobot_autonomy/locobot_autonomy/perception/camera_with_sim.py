@@ -9,26 +9,22 @@ from google.cloud import vision
 
 import rclpy
 from rclpy.node import Node
-import sensor_msgs
 from sensor_msgs.msg import Image
 
-import geometry_msgs
-from geometry_msgs.msg import Pose
-from geometry_msgs.msg import Twist, Vector3
+from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Point
-from nav_msgs.msg import Odometry
 from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from sensor_msgs.msg import CameraInfo
+from realsense2_camera_msgs.msg import Extrinsics
 
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 import tf2_ros
 
-from rclpy.qos import qos_profile_sensor_data, QoSProfile 
 #from verbal import SpeechTranscriber
 from find_center import VisionObjectDetector
 #import google.generativeai as genai
-from align_depth import align_depth, convert_intrinsics, warp_image, compute_homography
+from align_depth import align_depth
 
 import time
 
@@ -61,7 +57,7 @@ class Sable_ScanApproachNode(Node):
         #self.gemini = genai.GenerativeModel("gemini-1.5-flash")
 
         self.task = "retrieve"
-        self.desiredObject = "suitcase" # CHANGE TO CHANGE DESIRED OBJECT
+        self.desiredObject = "banana" # CHANGE TO CHANGE DESIRED OBJECT
         self.destination = None
 
         """ PUBLISHERS """
@@ -85,35 +81,51 @@ class Sable_ScanApproachNode(Node):
 
             self.get_logger().info('~SIMULATION~ Cameras')
 
+            self.create_subscription(
+                CameraInfo,
+                '/locobot/camera/camera_info',
+                self.rgb_info_callback,
+                10)
+            self.create_subscription(
+                CameraInfo,
+                '/locobot/camera/depth/camera_info', #check topic name...
+                self.depth_info_callback,
+                10)
         else:
-            rgb_camera = Subscriber(self, Image, "/locobot/camera/color/image_raw")
-            depth_camera = Subscriber(self, Image, '/camera/aligned_depth_to_color/image_raw')
+            rgb_camera = Subscriber(self, Image, "/locobot/camera/camera/color/image_raw")
+            depth_camera = Subscriber(self, Image, '/locobot/camera/camera/depth/image_rect_raw')
+
+            self.create_subscription(
+                CameraInfo,
+                '/locobot/camera/camera/color/camera_info',
+                self.rgb_info_callback,
+                10)
+            self.create_subscription(
+                CameraInfo,
+                '/locobot/camera/camera/depth/camera_info', #check topic name...
+                self.depth_info_callback,
+                10)
+        
         camera_sub = ApproximateTimeSynchronizer([rgb_camera, depth_camera], 10, 1)
         camera_sub.registerCallback(self.ScanImage)
-
-        self.create_subscription(
-            CameraInfo,
-            '/locobot/camera/camera_info',
-            self.rgb_info_callback,
-            10)
-        self.create_subscription(
-            CameraInfo,
-            '/locobot/camera/depth/camera_info', #check topic name...
-            self.depth_info_callback,
-            10)
         
         self.create_subscription(String, "/gripper_success", self.gripper_callback, 10)
 
         self.get_logger().info('Subscribers created')
 
-        """ Create TF buffer and listner"""
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        if self.use_sim:
+            """ Create TF buffer and listner"""
+            self.tf_buffer = tf2_ros.Buffer()
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        else:
+            self.create_subscription(
+                Extrinsics,
+                "/locobot/camera/camera/extrinsics/depth_to_color", 
+                self.extrinsics_callback, 10)
+            self.extrinsics = None
 
         """ STATE MACHINE """
         self.state_var = "Init" # Initial state
-        # self.use_sim = False # sim for now
-        #self.state_var = "RotateFind"
 
         self.get_logger().info('ScanApproachNode now running')
 
@@ -123,47 +135,55 @@ class Sable_ScanApproachNode(Node):
     def depth_info_callback(self, camera_info):
         self.depth_K = np.array(camera_info.k).reshape((3,3))
     
+    def extrinsics_callback(self, extrinsics):
+        rotation = np.array(extrinsics.rotation).reshape((3,3))
+        translation = np.array(extrinsics.translation).reshape((3,1))
+        self.extrinsics = np.concatenate((rotation, translation), axis=1)
+    
     def get_transformation(self):
         """
         Gets transformation data and calculates the transformation matrix
         """
-        try:
-            # Get transformation data from rgb_camera and depth_camera
-            # Check frame names
-            # trans: TransformStamped = self.tf_buffer.lookup_transform(
-            #     'locobot/camera_link', 'locobot/camera_depth_link', rclpy.time.Time())
-            # ***From Trevor*** = Looking at frame names, at least in sim, I think it should be
-            trans: TransformStamped = self.tf_buffer.lookup_transform(
-                'camera_locobot_link', 'locobot/camera_depth_link', rclpy.time.Time())
+        if self.use_sim:
+            try:
+                # Get transformation data from rgb_camera and depth_camera
+                # Check frame names
+                # trans: TransformStamped = self.tf_buffer.lookup_transform(
+                #     'locobot/camera_link', 'locobot/camera_depth_link', rclpy.time.Time())
+                # ***From Trevor*** = Looking at frame names, at least in sim, I think it should be
+                trans: TransformStamped = self.tf_buffer.lookup_transform(
+                    'camera_locobot_link', 'locobot/camera_depth_link', rclpy.time.Time())
 
-            # 이동(translation) 정보 추출
-            translation = np.array([trans.transform.translation.x,
-                           trans.transform.translation.y,
-                           trans.transform.translation.z]).reshape((3, 1))
-            
-            # Get rotation info (quaternions)
-            quaternion = np.array([trans.transform.rotation.x,
-                        trans.transform.rotation.y,
-                        trans.transform.rotation.z,
-                        trans.transform.rotation.w])
+                # 이동(translation) 정보 추출
+                translation = np.array([trans.transform.translation.x,
+                            trans.transform.translation.y,
+                            trans.transform.translation.z]).reshape((3, 1))
+                
+                # Get rotation info (quaternions)
+                quaternion = np.array([trans.transform.rotation.x,
+                            trans.transform.rotation.y,
+                            trans.transform.rotation.z,
+                            trans.transform.rotation.w])
 
-            # Create transformation matrix
-            rotation = quaternion_to_rotation_matrix(quaternion)
-            transform_mat = np.concatenate((rotation, translation), axis=1)
+                # Create transformation matrix
+                rotation = quaternion_to_rotation_matrix(quaternion)
+                transform_mat = np.concatenate((rotation, translation), axis=1)
 
-            # Print transformation matrix
-            #self.get_logger().info(f'Transformation Matrix:\n{transform_mat}')
-            # *** Clutters output
+                # Print transformation matrix
+                #self.get_logger().info(f'Transformation Matrix:\n{transform_mat}')
+                # *** Clutters output
 
-            return transform_mat
+                return transform_mat
 
-        except tf2_ros.LookupException as e:
-            self.get_logger().error('Transform not available.')
-            self.get_logger().error(f'{e}')
-        except tf2_ros.ConnectivityException:
-            self.get_logger().error('Connectivity issue.')
-        except tf2_ros.ExtrapolationException:
-            self.get_logger().error('Extrapolation error.')
+            except tf2_ros.LookupException as e:
+                self.get_logger().error('Transform not available.')
+                self.get_logger().error(f'{e}')
+            except tf2_ros.ConnectivityException:
+                self.get_logger().error('Connectivity issue.')
+            except tf2_ros.ExtrapolationException:
+                self.get_logger().error('Extrapolation error.')
+        else:
+            return self.extrinsics
     
     def gripper_callback(self, msg):
         if msg.data == "Success":

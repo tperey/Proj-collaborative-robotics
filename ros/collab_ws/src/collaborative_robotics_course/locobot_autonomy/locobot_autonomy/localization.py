@@ -28,7 +28,7 @@ class Localizer(Node):
         # self.K will start as None; check that it is not None before calculating things
         self.camera_sub = self.create_subscription(
             CameraInfo,
-            '/locobot/camera/camera_info',
+            '/locobot/camera/camera/color/camera_info',
             self.camera_callback,
             10)
         self.K = None

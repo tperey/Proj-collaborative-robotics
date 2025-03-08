@@ -3,7 +3,7 @@
 * rviz2
 * The bot itself 
     * For Sim —> ros2 launch interbotix_xslocobot_moveit xslocobot_moveit.launch.py robot_model:=locobot_wx200 use_lidar:=true hardware_type:=gz_classic
-    * For Real Robot --> ???  
+    * For Real Robot --> ros2 launch interbotix_xslocobot_control xslocobot_control.launch.py robot_model:=locobot_wx250s use_base:=true use_camera:=true use_lidar:=false
 * The arm wrapper
     * For sim —> ros2 launch locobot_wrapper arm_control.launch.py
     * For Real Robot —> ros2 launch locobot_wrapper arm_control.launch.py use_sim:=false
