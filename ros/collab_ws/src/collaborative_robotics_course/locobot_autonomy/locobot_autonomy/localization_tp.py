@@ -119,10 +119,11 @@ class TPLocalizer(Node):
         # According to chat GPT, K[0,2] = cx, and K[1,2] = cy, i.e. the centers of the image
         # But, K prints out such that (cx, cy) = (0,0), which is NOT the center! (300, 240) is the center.
         # So, should change to that
-        K[0,2] = IMAGE_WIDTH/2 # Assign half of image width to cx
-        K[1,2] = IMAGE_HEIGHT/2 # Assign half of image height to cy
-        # In simulation, this seemed to lead to much better goal points
-        # I'm not complete confident in this tho so feel free to change
+        if K[0,2] < 1.0 and K[1,2] < 1.0:
+            K[0,2] = IMAGE_WIDTH/2 # Assign half of image width to cx
+            K[1,2] = IMAGE_HEIGHT/2 # Assign half of image height to cy
+            # In simulation, this seemed to lead to much better goal points
+            # I'm not complete confident in this tho so feel free to change
 
         self.get_logger().info(f'K = {K}')
         self.get_logger().info(f'pixel_coord = {u}, {v}, {depth}')

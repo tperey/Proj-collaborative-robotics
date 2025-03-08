@@ -13,17 +13,22 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='locobot_autonomy',
-            executable='localization.py',
-            name='localizer'
+            executable='localization_tp.py',
+            name='TPlocalizer'
         ),
-        # Node(
-        #     package='locobot_autonomy',
-        #     executable='perception/camera.py',
-        #     name='scan_approach_node'
-        # ),
-        # Node(
-        #     package='locobot_autonomy',
-        #     executable='grasp.py',
-        #     name='grasp'
-        # ),
+        Node(
+            package='locobot_autonomy',
+            executable='manipulation_node.py',
+            name='ManipulationNode'
+        ),
+        Node(
+            package='locobot_autonomy',
+            executable='node_driver_with_sim.py',
+            name='driver_node'
+        ),
+        Node(
+            package='locobot_autonomy',
+            executable='perception/camera_with_sim.py',
+            name='scan_approach_node'
+        ),
     ])

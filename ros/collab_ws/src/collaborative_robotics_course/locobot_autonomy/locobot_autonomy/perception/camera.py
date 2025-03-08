@@ -9,14 +9,10 @@ from google.cloud import vision
 
 import rclpy
 from rclpy.node import Node
-import sensor_msgs
 from sensor_msgs.msg import Image
 
-import geometry_msgs
-from geometry_msgs.msg import Pose
-from geometry_msgs.msg import Twist, Vector3
+from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Point
-from nav_msgs.msg import Odometry
 from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from sensor_msgs.msg import CameraInfo
@@ -24,7 +20,6 @@ from sensor_msgs.msg import CameraInfo
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 import tf2_ros
 
-from rclpy.qos import qos_profile_sensor_data, QoSProfile 
 from verbal import SpeechTranscriber
 from find_center import VisionObjectDetector
 import google.generativeai as genai
@@ -205,7 +200,7 @@ class ScanApproachNode(Node):
             # Only change on transition
 
             ### OBJECT LOCALIZATION ###
-            center = self.obj_detect.find_center(img_bytes, object.name.lower())
+            center = self.obj_detect.find_center(img_bytes, self.desiredObject)
 
             if center is not None:
                 target_point = Point()
