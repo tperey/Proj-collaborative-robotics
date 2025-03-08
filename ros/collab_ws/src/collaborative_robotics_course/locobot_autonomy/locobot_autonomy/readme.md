@@ -7,6 +7,12 @@
 * The arm wrapper
     * For sim —> ros2 launch locobot_wrapper arm_control.launch.py
     * For Real Robot —> ros2 launch locobot_wrapper arm_control.launch.py use_sim:=false
+
+Then 
+ros2 launch locobot_autonomy project_launch.py
+
+OR
+
 * The manipulation node
     * For sim —> ros2 run locobot_autonomy manipulation_node.py
     * For Real Robot --> _same_ (expected, though not tested. Assumes relevant topics wont change)

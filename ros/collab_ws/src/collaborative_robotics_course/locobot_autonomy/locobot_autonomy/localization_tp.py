@@ -46,6 +46,7 @@ class TPLocalizer(Node):
                 #'/locobot/camera/depth/camera_info',
                 #***From Trevor - We are using Depth TransfMatrix, which seems right, so I think we want depth K
                 # Its like same as normal so don't know that it matters.
+                ### **********OTHER TEAM USED COLOR CAMERA, hence the above ********** ###
                 self.camera_callback,
                 10)
         self.K = None
@@ -88,7 +89,7 @@ class TPLocalizer(Node):
                 trans: TransformStamped = self.tf_buffer.lookup_transform(
                     'locobot/arm_base_link', 'camera_locobot_link', rclpy.time.Time()
                 )
-            # From other group this is what we want.
+                ### **********OTHER TEAM USED COLOR CAMERA, hence the above ********** ###
 
             
             # trans: TransformStamped = self.tf_buffer.lookup_transform(
@@ -158,6 +159,16 @@ class TPLocalizer(Node):
         else:
             cam_coord[2] = depth
         self.get_logger().info(f'cam_coord = {cam_coord}')
+
+        ### **********OTHER TEAM USED COLOR CAMERA; if we do too, I actually think you need ********** ###
+        # if self.use_sim:
+        #     cam_coord[0] = depth
+        # else:
+        #     cam_coord[0] = depth
+        # self.get_logger().info(f'cam_coord = {cam_coord}')
+
+        # cam_coord[1] = (u - K[0,2]) * depth / K[0,0]
+        # cam_coord[2] = (v - K[1,2]) * depth / K[1,1]
 
         return np.dot(extrinsics, cam_coord)
 

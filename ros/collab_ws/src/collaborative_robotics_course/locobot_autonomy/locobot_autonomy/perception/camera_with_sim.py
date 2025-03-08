@@ -57,7 +57,10 @@ class Sable_ScanApproachNode(Node):
         #self.gemini = genai.GenerativeModel("gemini-1.5-flash")
 
         self.task = "retrieve"
-        self.desiredObject = "banana" # CHANGE TO CHANGE DESIRED OBJECT
+        if self.use_sim:
+            self.desiredObject = "suitcase" # CHANGE TO CHANGE DESIRED OBJECT
+        else:
+            self.desiredObject = "banana" # CHANGE TO CHANGE DESIRED OBJECT
         self.destination = None
 
         """ PUBLISHERS """
@@ -154,6 +157,8 @@ class Sable_ScanApproachNode(Node):
                 # ***From Trevor*** = Looking at frame names, at least in sim, I think it should be
                 trans: TransformStamped = self.tf_buffer.lookup_transform(
                     'camera_locobot_link', 'locobot/camera_depth_link', rclpy.time.Time())
+                # Should be depth to rgb
+                ### **********OTHER TEAM USED 4X4 IDENTITY FOR THIS********** ###
 
                 # 이동(translation) 정보 추출
                 translation = np.array([trans.transform.translation.x,
