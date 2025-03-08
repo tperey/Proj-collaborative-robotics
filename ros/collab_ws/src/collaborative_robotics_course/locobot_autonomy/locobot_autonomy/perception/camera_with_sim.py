@@ -43,10 +43,10 @@ class Sable_ScanApproachNode(Node):
         # self.target_publisher = self.create_publisher(Point, "/target_point", 10)
         
         """ SIMULATION """
-        self.use_sim = True
+        self.use_sim = False
 
         """ VISION """
-        self.json_key_path ="/home/ubuntu/Desktop/LabDocker/Proj-collaborative-robotics/ros/collab_ws/src/collaborative_robotics_course/locobot_autonomy/locobot_autonomy/united-potion-452200-b1-8bf065055d29.json"
+        self.json_key_path ="src/collaborative_robotics_course/locobot_autonomy/locobot_autonomy/united-potion-452200-b1-8bf065055d29.json"
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.json_key_path
 
         self.bridge = CvBridge()
@@ -70,8 +70,8 @@ class Sable_ScanApproachNode(Node):
         
         # Sim and/or testing only
         #self.test_timer = self.create_timer(1.0, self.test_callback)
-        self.sim_arm_publisher = self.create_publisher(PoseStamped, "/arm_pose", 10) # Arbitrarily queued 10
-        self.sim_base_publisher = self.create_publisher(Twist,"/locobot/diffdrive_controller/cmd_vel_unstamped", 1) #this is the topic we will publish to in order to move the base
+        #self.sim_arm_publisher = self.create_publisher(PoseStamped, "/arm_pose", 10) # Arbitrarily queued 10
+        #self.sim_base_publisher = self.create_publisher(Twist,"/locobot/diffdrive_controller/cmd_vel_unstamped", 1) #this is the topic we will publish to in order to move the base
 
         """ CREATE SUBSCRIBERS """
         # Synchronized rgb and depth - change based on sim
@@ -92,17 +92,17 @@ class Sable_ScanApproachNode(Node):
                 self.depth_info_callback,
                 10)
         else:
-            rgb_camera = Subscriber(self, Image, "/locobot/camera/camera/color/image_raw")
-            depth_camera = Subscriber(self, Image, '/locobot/camera/camera/depth/image_rect_raw')
+            rgb_camera = Subscriber(self, Image, "/locobot/camera/color/image_raw")
+            depth_camera = Subscriber(self, Image, '/locobot/camera/depth/image_rect_raw')
 
             self.create_subscription(
                 CameraInfo,
-                '/locobot/camera/camera/color/camera_info',
+                '/locobot/camera/color/camera_info',
                 self.rgb_info_callback,
                 10)
             self.create_subscription(
                 CameraInfo,
-                '/locobot/camera/camera/depth/camera_info', #check topic name...
+                '/locobot/camera/depth/camera_info', #check topic name...
                 self.depth_info_callback,
                 10)
         
@@ -113,14 +113,14 @@ class Sable_ScanApproachNode(Node):
 
         self.get_logger().info('Subscribers created')
 
-        if self.use_sim:
+        if True:
             """ Create TF buffer and listner"""
             self.tf_buffer = tf2_ros.Buffer()
             self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         else:
             self.create_subscription(
                 Extrinsics,
-                "/locobot/camera/camera/extrinsics/depth_to_color", 
+                "/locobot/camera/extrinsics/depth_to_color", 
                 self.extrinsics_callback, 10)
             self.extrinsics = None
 
@@ -139,12 +139,13 @@ class Sable_ScanApproachNode(Node):
         rotation = np.array(extrinsics.rotation).reshape((3,3))
         translation = np.array(extrinsics.translation).reshape((3,1))
         self.extrinsics = np.concatenate((rotation, translation), axis=1)
+        self.get_logger().info(f'{self.extrinsics}')
     
     def get_transformation(self):
         """
         Gets transformation data and calculates the transformation matrix
         """
-        if self.use_sim:
+        if True:
             try:
                 # Get transformation data from rgb_camera and depth_camera
                 # Check frame names
@@ -197,7 +198,7 @@ class Sable_ScanApproachNode(Node):
     
     def ScanImage(self, rgb_imgmsg, depth_imgmsg):
 
-        #self.get_logger().info('Camera callback triggered')
+        self.get_logger().info('Camera callback triggered')
 
         """ STATE MACHINE """   
         if self.state_var == "Init":
@@ -231,6 +232,7 @@ class Sable_ScanApproachNode(Node):
             gripperstate_to_post.data = "wait"
             self.gripper_state_publisher.publish(gripperstate_to_post)
             self.get_logger().info(f'Moved gripper to wait in INIT')
+            time.sleep(10)
             
             self.state_var = "RotateFind"
             
@@ -263,7 +265,7 @@ class Sable_ScanApproachNode(Node):
             #self.get_logger().info(f'...Looking for {self.desiredObject.lower()}')
             
             for object in objects: # Only run if obj detected. Alos, need to check all objects for desired
-                self.get_logger().info(f'Detected object {object.name.lower()}')
+                #self.get_logger().info(f'Detected object {object.name.lower()}')
                 
                 if object.name.lower() == self.desiredObject.lower(): # Only run if desired object. Use "name" to detect
                     center = self.obj_detect.find_center(img_bytes, object.name.lower())
@@ -276,19 +278,30 @@ class Sable_ScanApproachNode(Node):
                         target_point.x = center[0]
                         target_point.y = center[1]
                         # ***Determined from testing that sometimes obj detected before center in frame
-                        if target_point.x > 600.0:
-                            target_point.x = 600.0
-                        elif target_point.x < 0.0:
-                            target_point.x = 0.0
-                        
-                        if target_point.y > 480.0:
-                            target_point.y = 480.0
-                        elif target_point.y < 0.0:
-                            target_point.y = 0.0
-
+                        if self.use_sim:
+                            if target_point.x > 600.0:
+                                target_point.x = 600.0
+                            elif target_point.x < 0.0:
+                                target_point.x = 0.0
+                            
+                            if target_point.y > 480.0:
+                                target_point.y = 480.0
+                            elif target_point.y < 0.0:
+                                target_point.y = 0.0
+                        else:
+                            if target_point.x > 640.0:
+                                target_point.x = 640.0
+                            elif target_point.x < 0.0:
+                                target_point.x = 0.0
+                            
+                            if target_point.y > 480.0:
+                                target_point.y = 480.0
+                            elif target_point.y < 0.0:
+                                target_point.y = 0.0
                         ### DEPTH ALIGNMENT ###
-                        if (self.depth_K is not None) and (self.rgb_K is not None):
-                            aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, self.get_transformation())
+                        transform_mat = self.get_transformation()
+                        if (self.depth_K is not None) and (self.rgb_K is not None) and transform_mat is not None:
+                            aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, transform_mat)
                             target_point.z = float(aligned_depth[int(target_point.y), int(target_point.x)]) # Need integer conversion for indexing, then float for Point publication
                             #***From Trevor - from testing, images are indexed [row, col] = [y, x]!
                             self.obj_coord_publisher.publish(target_point)
@@ -338,7 +351,7 @@ class Sable_ScanApproachNode(Node):
             #self.get_logger().info(f'...Looking for {self.desiredObject.lower()}')
             
             for object in objects: # Only run if obj detected. Alos, need to check all objects for desired
-                self.get_logger().info(f'Detected object {object.name.lower()}')
+                #self.get_logger().info(f'Detected object {object.name.lower()}')
                 
                 if object.name.lower() == self.desiredObject.lower(): # Only run if desired object. Use "name" to detect
                     center = self.obj_detect.find_center(img_bytes, object.name.lower())
@@ -351,15 +364,26 @@ class Sable_ScanApproachNode(Node):
                         target_point.x = center[0]
                         target_point.y = center[1]
                         # ***Determined from testing that sometimes obj detected before center in frame
-                        if target_point.x > 600.0:
-                            target_point.x = 600.0
-                        elif target_point.x < 0.0:
-                            target_point.x = 0.0
-                        
-                        if target_point.y > 480.0:
-                            target_point.y = 480.0
-                        elif target_point.y < 0.0:
-                            target_point.y = 0.0
+                        if self.use_sim:
+                            if target_point.x > 600.0:
+                                target_point.x = 600.0
+                            elif target_point.x < 0.0:
+                                target_point.x = 0.0
+                            
+                            if target_point.y > 480.0:
+                                target_point.y = 480.0
+                            elif target_point.y < 0.0:
+                                target_point.y = 0.0
+                        else:
+                            if target_point.x > 640.0:
+                                target_point.x = 640.0
+                            elif target_point.x < 0.0:
+                                target_point.x = 0.0
+                            
+                            if target_point.y > 480.0:
+                                target_point.y = 480.0
+                            elif target_point.y < 0.0:
+                                target_point.y = 0.0
 
                         ### DEPTH ALIGNMENT ###
                         if (self.depth_K is not None) and (self.rgb_K is not None):
@@ -431,7 +455,7 @@ class Sable_ScanApproachNode(Node):
             #self.get_logger().info(f'...Looking for {self.desiredObject.lower()}')
             
             for object in objects: # Only run if obj detected. Alos, need to check all objects for desired
-                self.get_logger().info(f'Detected object {object.name.lower()}')
+                #self.get_logger().info(f'Detected object {object.name.lower()}')
                 
                 if object.name.lower() == self.desiredObject.lower(): # Only run if desired object. Use "name" to detect
                     center = self.obj_detect.find_center(img_bytes, object.name.lower())
@@ -444,15 +468,26 @@ class Sable_ScanApproachNode(Node):
                         target_point.x = center[0]
                         target_point.y = center[1]
                         # ***Determined from testing that sometimes obj detected before center in frame
-                        if target_point.x > 600.0:
-                            target_point.x = 600.0
-                        elif target_point.x < 0.0:
-                            target_point.x = 0.0
-                        
-                        if target_point.y > 480.0:
-                            target_point.y = 480.0
-                        elif target_point.y < 0.0:
-                            target_point.y = 0.0
+                        if self.use_sim:
+                            if target_point.x > 600.0:
+                                target_point.x = 600.0
+                            elif target_point.x < 0.0:
+                                target_point.x = 0.0
+                            
+                            if target_point.y > 480.0:
+                                target_point.y = 480.0
+                            elif target_point.y < 0.0:
+                                target_point.y = 0.0
+                        else:
+                            if target_point.x > 640.0:
+                                target_point.x = 640.0
+                            elif target_point.x < 0.0:
+                                target_point.x = 0.0
+                            
+                            if target_point.y > 480.0:
+                                target_point.y = 480.0
+                            elif target_point.y < 0.0:
+                                target_point.y = 0.0
 
                         ### DEPTH ALIGNMENT ###
                         if (self.depth_K is not None) and (self.rgb_K is not None):

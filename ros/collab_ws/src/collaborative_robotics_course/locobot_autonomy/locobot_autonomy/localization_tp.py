@@ -17,6 +17,8 @@ IMAGE_HEIGHT = 480.0
 class TPLocalizer(Node):
     def __init__(self):
         super().__init__('TPlocalizer')
+
+        self.use_sim = False
         
         # create TF buffer and listener
         self.tf_buffer = tf2_ros.Buffer()
@@ -29,13 +31,23 @@ class TPLocalizer(Node):
 
         # camera_callback will store the camera matrix K into self.K
         # self.K will start as None; check that it is not None before calculating things
-        self.camera_sub = self.create_subscription(
-            CameraInfo,
-            '/locobot/camera/depth/camera_info', #'/locobot/camera/camera_info',
-            #***From Trevor - We are using Depth TransfMatrix, which seems right, so I think we want depth K
-            # Its like same as normal so don't know that it matters.
-            self.camera_callback,
-            10)
+        if self.use_sim:
+            self.camera_sub = self.create_subscription(
+                CameraInfo,
+                '/locobot/camera/depth/camera_info', #'/locobot/camera/camera_info',
+                #***From Trevor - We are using Depth TransfMatrix, which seems right, so I think we want depth K
+                # Its like same as normal so don't know that it matters.
+                self.camera_callback,
+                10)
+        else:
+            self.camera_sub = self.create_subscription(
+                CameraInfo,
+                '/locobot/camera/color/camera_info', #'/locobot/camera/camera_info',
+                #'/locobot/camera/depth/camera_info',
+                #***From Trevor - We are using Depth TransfMatrix, which seems right, so I think we want depth K
+                # Its like same as normal so don't know that it matters.
+                self.camera_callback,
+                10)
         self.K = None
 
         self.get_logger().info('Localizer node has started')
@@ -68,9 +80,16 @@ class TPLocalizer(Node):
         """
         try:
             # Get transformation data from base_link to camera_frame
-            trans: TransformStamped = self.tf_buffer.lookup_transform(
-                'locobot/base_link', 'locobot/camera_depth_link', rclpy.time.Time())
-            # ***From Trevor - From printing and looking at rotations (and ChatGPT) I think this is right
+            if self.use_sim:
+                trans: TransformStamped = self.tf_buffer.lookup_transform(
+                    'locobot/base_link', 'locobot/camera_depth_link', rclpy.time.Time())
+                # ***From Trevor - From printing and looking at rotations (and ChatGPT) I think this is right
+            else:
+                trans: TransformStamped = self.tf_buffer.lookup_transform(
+                    'locobot/arm_base_link', 'camera_locobot_link', rclpy.time.Time()
+                )
+            # From other group this is what we want.
+
             
             # trans: TransformStamped = self.tf_buffer.lookup_transform(
             #     'locobot/base_link', 'camera_locobot_link', rclpy.time.Time())
@@ -114,6 +133,9 @@ class TPLocalizer(Node):
         # - origin is top LEFT of image
         # Target point (x,y) comes in FLIPPED. That is 
 
+        if not self.use_sim:
+            depth = depth/1000
+        
         self.get_logger().info(f'Original K = {K}')
         # ***Trevor - some more stuff
         # According to chat GPT, K[0,2] = cx, and K[1,2] = cy, i.e. the centers of the image
@@ -130,7 +152,11 @@ class TPLocalizer(Node):
         cam_coord = np.ones(4)
         cam_coord[0] = (u - K[0,2]) * depth / K[0,0]
         cam_coord[1] = (v - K[1,2]) * depth / K[1,1]
-        cam_coord[2] = depth
+
+        if self.use_sim:
+            cam_coord[2] = depth
+        else:
+            cam_coord[2] = depth
         self.get_logger().info(f'cam_coord = {cam_coord}')
 
         return np.dot(extrinsics, cam_coord)

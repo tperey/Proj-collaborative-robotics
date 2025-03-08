@@ -37,14 +37,14 @@ import time
 # R = Identity, p = [0.501, 0, 0.429]
 # Pick something that makes sense with that
 
-class ManipulationNode(Node):
+class ManipV2Node(Node):
     """Class for simple object grabbing, assuming position is passed to it
     """
     def __init__(self):
         """
         No initialization params for now
         """
-        super().__init__('ManipulationNode')
+        super().__init__('ManipV2Node')
 
         """ CLASS VARIABLES """
         self.use_sim = True
@@ -83,7 +83,7 @@ class ManipulationNode(Node):
         self.gripper_publisher = self.create_publisher(Bool, '/gripper', 10)
         
         # Acknowledge node start
-        self.get_logger().info('ManipulationNode has started')
+        self.get_logger().info('ManipV2Node has started')
     
     def goal_coord_callback(self, msg):
 
@@ -107,13 +107,13 @@ class ManipulationNode(Node):
         gripper_state = msg.data # Get string from msg
         gripper_state = gripper_state.lower() # Lowercase for consistency
 
-        if gripper_state == "wait":
+        if gripper_state == "plswork":
             # Move arm out of the way
             """ Convert stored target_pose into a msg to post """
             desired_pose_msg = PoseStamped() # Define pose
             #position
-            desired_pose_msg.pose.position.x = 0.2
-            desired_pose_msg.pose.position.y = 0.1
+            desired_pose_msg.pose.position.x = 0.4
+            desired_pose_msg.pose.position.y = 0.0
             desired_pose_msg.pose.position.z = 0.1
             #orientation - always facing down
             desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
@@ -163,7 +163,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     #instantiate the class
-    cls_obj = ManipulationNode() #instantiate object of the class (to call and use the functions)
+    cls_obj = ManipV2Node() #instantiate object of the class (to call and use the functions)
 
     rclpy.spin(cls_obj)
 

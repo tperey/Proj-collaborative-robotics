@@ -28,7 +28,7 @@ def generate_launch_description():
         ),
         Node(
             package='locobot_autonomy',
-            executable='perception/camera_with_sim.py',
+            executable='camera_with_sim.py',
             name='scan_approach_node'
         ),
     ])

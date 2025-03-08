@@ -47,7 +47,6 @@ install(PROGRAMS
   locobot_autonomy/move_A_to_B_py.py
   locobot_autonomy/simple_control.py
   locobot_autonomy/move_locobot_base_action_server.py
-  locobot_autonomy/follow_traj_hw2.py
   locobot_autonomy/test_arm_move.py
   locobot_autonomy/perception/camera.py
   locobot_autonomy/perception/find_center.py
@@ -56,6 +55,7 @@ install(PROGRAMS
   locobot_autonomy/perception/camera_with_sim.py
   locobot_autonomy/perception/align_depth.py
   locobot_autonomy/manipulation_node.py
+  locobot_autonomy/manip_node_v2.py
   locobot_autonomy/node_driver_with_sim.py
   locobot_autonomy/localization_tp.py
   DESTINATION lib/${PROJECT_NAME}
