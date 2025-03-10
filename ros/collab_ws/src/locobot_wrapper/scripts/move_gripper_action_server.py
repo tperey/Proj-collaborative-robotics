@@ -6,8 +6,7 @@ from rclpy.action import ActionServer
 from rclpy.duration import Duration
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from std_msgs.msg import String
-from locobot_interfaces.action import MoveGripper 
-from locobot_interfaces.srv import AttachDetach
+from locobot_wrapper_msgs.action import MoveGripper
 
 
 class LocobotGrip(Node):

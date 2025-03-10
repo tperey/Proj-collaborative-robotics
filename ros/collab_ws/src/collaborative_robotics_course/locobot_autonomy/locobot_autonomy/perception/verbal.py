@@ -15,7 +15,6 @@ from google.cloud import speech_v1 as speech
 #from google.colab import files
 from google.cloud import vision
 from PIL import Image as PILImage, ImageDraw, ImageFont
-from IPython.display import display
 import string 
 import re   
 import io   
@@ -65,11 +64,3 @@ class SpeechTranscriber:
         talk = self.client.recognize(config=config, audio=audio)
         transcript = [result.alternatives[0].transcript for result in talk.results]
         return transcript
-    
-test = SpeechTranscriber()
-
-audio_content1 = data_path + "/recorded_audio1.wav"
-with open(audio_content1, "rb") as audio_file:
-    audio_content1 = audio_file.read()
-transcription = test.transcribe_audio(audio_content1)
-print("Transcription:\n", transcription)

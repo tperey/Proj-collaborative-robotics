@@ -14,7 +14,6 @@ from std_msgs.msg import Bool
 class ArmWrapperNode(Node):
     def __init__(self):
         super().__init__('arm_wrapper_node')
-
          # Declare the parameter 'use_sim' with a default value of False
         self.declare_parameter('use_sim', False)
         
@@ -50,17 +49,16 @@ class ArmWrapperNode(Node):
             'movegripper'
         )
 
-
-        self.locobot = InterbotixLocobotXS(
-        robot_model='locobot_wx250s',
-        robot_name='locobot',
-        arm_model='mobile_wx250s'
-        )
+        if not self.use_sim:
+            self.locobot = InterbotixLocobotXS(
+            robot_model='locobot_wx250s',
+            robot_name='locobot',
+            arm_model='mobile_wx250s'
+            )
 
     def pose_callback(self, msg):
         # Log the received PoseStamped message
         self.get_logger().info(f"Received Pose: {msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
-        
         # Conditional behavior based on the 'use_sim' parameter
         if self.use_sim:
             # Simulated behavior
@@ -74,15 +72,14 @@ class ArmWrapperNode(Node):
                 goal_msg,
                 feedback_callback=self.feedback_callback
             )
-            self._send_goal_future.add_done_callback(self.goal_response_callback)
+            self.send_goal_future.add_done_callback(self.goal_response_callback)
 
         else:
             # Actual behavior
-            import pdb; pdb.set_trace()
             self.get_logger().info(f"Real behavior: Moving hardware with Pose {msg.pose}")
             r = R.from_quat([msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w])
             rot_mat = r.as_matrix()
-            matrix = np.ones((4,4))
+            matrix = np.eye(4)
             matrix[0:3, 0:3] = rot_mat
             matrix[0,3] = msg.pose.position.x
             matrix[1,3] = msg.pose.position.y
