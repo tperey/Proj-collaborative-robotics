@@ -1,0 +1,27 @@
+import numpy as np
+import itertools
+
+# Camera vector
+v_camera = np.array([0.05190135, 0.13359855, 0.52, 1.0])
+
+# Transformation matrix
+transformation_matrix = np.array([
+    [ 0.70788002,  0.04454369,  0.70492676, -0.0187513 ],
+    [-0.70615224,  0.02207161,  0.70771594,  0.03544988],
+    [ 0.01596541, -0.99876359,  0.04707868,  0.42041003]
+])
+
+# Extract the first three columns from the transformation matrix
+columns = transformation_matrix[:, :3]  # 3 columns, all rows
+
+# Generate all permutations of the 3 column vectors
+permutations = itertools.permutations(columns.T)  # .T transposes the columns for permutations
+
+# Multiply each permutation of the columns by the camera vector
+for perm in permutations:
+    # Construct the new matrix with permuted columns
+    permuted_matrix = np.column_stack(perm)
+    
+    # Perform matrix multiplication
+    result = permuted_matrix @ v_camera
+    print(f"Result of multiplication with permutation {perm}:\n{result}\n")
