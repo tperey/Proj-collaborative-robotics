@@ -20,6 +20,7 @@ from verbal import transcribe_audio
 from find_center import find_center 
 
 #json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
+# C:\Users\capam\Documents\stanford\colloborative_robotics\group_project\Proj-collaborative-robotics\ros\collab_ws\src\collaborative_robotics_course\locobot_autonomy\locobot_autonomy\perception\camera.py
 
 class ScanApproachNode(Node):
     def __init__(self):

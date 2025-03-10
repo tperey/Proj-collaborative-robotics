@@ -17,14 +17,17 @@ from google.cloud import vision
 from PIL import Image as PILImage, ImageDraw, ImageFont
 from IPython.display import display
 import string 
-import re 
+import re   
+import io   
+import sounddevice as sd                                                   
 
 data_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\data\data\VLM and Audio'
 json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = json_key_path
+filename = 'record'
 
 class SpeechTranscriber:
-    def __init__(self, language_code='en-US', sample_rate=16000):
+    def __init__(self, language_code='en-US', sample_rate=48000):
         """
         Initialize a SpeechTranscriber instance.
 
@@ -34,6 +37,14 @@ class SpeechTranscriber:
         self.language_code = language_code
         self.sample_rate = sample_rate
         self.client = speech.SpeechClient()
+
+    def record_audio(self, filename, duration=10, sample_rate = 48000):
+        print('Recording starting')
+        recorded_data = sd.rec(
+            int(duration*sample_rate),
+            samplerate =sample_rate, 
+            channels=1
+        )
 
     def transcribe_audio(self, audio_content):
         """
