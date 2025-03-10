@@ -5,7 +5,6 @@ import numpy as np
 import cv2
 from cv_bridge import CvBridge
 import os
-from google.cloud import vision
 
 import rclpy
 from rclpy.node import Node
@@ -16,7 +15,6 @@ from geometry_msgs.msg import Point
 from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from sensor_msgs.msg import CameraInfo
-from realsense2_camera_msgs.msg import Extrinsics
 
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 import tf2_ros
@@ -30,7 +28,19 @@ import time
 
 #json_key_path = r'C:\Users\capam\Documents\stanford\colloborative_robotics\python-447906-51258c347833.json'
 
-DISTANCE_THRESHOLD = 0.5
+DISTANCE_THRESHOLD = 1000.0
+
+def limit_vals(x, y, x_limit, y_limit):
+    if x > x_limit:
+        x = x_limit
+    if x < 0:
+        x = 0
+    if y > y_limit:
+        y = y_limit
+    if y < 0:
+        y = 0
+    
+    return x, y
 
 class Sable_ScanApproachNode(Node):
     def __init__(self):
@@ -50,7 +60,6 @@ class Sable_ScanApproachNode(Node):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.json_key_path
 
         self.bridge = CvBridge()
-        self.client = vision.ImageAnnotatorClient()
 
         #self.speech = SpeechTranscriber()
         self.obj_detect = VisionObjectDetector()
@@ -60,7 +69,7 @@ class Sable_ScanApproachNode(Node):
         if self.use_sim:
             self.desiredObject = "suitcase" # CHANGE TO CHANGE DESIRED OBJECT
         else:
-            self.desiredObject = "banana" # CHANGE TO CHANGE DESIRED OBJECT
+            self.desiredObject = "strawberry"#"apple" # CHANGE TO CHANGE DESIRED OBJECT
         self.destination = None
 
         """ PUBLISHERS """
@@ -95,19 +104,21 @@ class Sable_ScanApproachNode(Node):
                 self.depth_info_callback,
                 10)
         else:
-            rgb_camera = Subscriber(self, Image, "/locobot/camera/color/image_raw")
-            depth_camera = Subscriber(self, Image, '/locobot/camera/depth/image_rect_raw')
+            rgb_camera = Subscriber(self, Image, "/locobot/camera/camera/color/image_raw")
+            depth_camera = Subscriber(self, Image, '/locobot/camera/camera/depth/image_rect_raw')
 
             self.create_subscription(
                 CameraInfo,
-                '/locobot/camera/color/camera_info',
+                '/locobot/camera/camera/color/camera_info',
                 self.rgb_info_callback,
                 10)
             self.create_subscription(
                 CameraInfo,
-                '/locobot/camera/depth/camera_info', #check topic name...
+                '/locobot/camera/camera/depth/camera_info', #check topic name...
                 self.depth_info_callback,
                 10)
+            self.rgb_K = None
+            self.depth_K = None
         
         camera_sub = ApproximateTimeSynchronizer([rgb_camera, depth_camera], 10, 1)
         camera_sub.registerCallback(self.ScanImage)
@@ -116,16 +127,9 @@ class Sable_ScanApproachNode(Node):
 
         self.get_logger().info('Subscribers created')
 
-        if True:
-            """ Create TF buffer and listner"""
-            self.tf_buffer = tf2_ros.Buffer()
-            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
-        else:
-            self.create_subscription(
-                Extrinsics,
-                "/locobot/camera/extrinsics/depth_to_color", 
-                self.extrinsics_callback, 10)
-            self.extrinsics = None
+        """ Create TF buffer and listner"""
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         """ STATE MACHINE """
         self.state_var = "Init" # Initial state
@@ -138,58 +142,52 @@ class Sable_ScanApproachNode(Node):
     def depth_info_callback(self, camera_info):
         self.depth_K = np.array(camera_info.k).reshape((3,3))
     
-    def extrinsics_callback(self, extrinsics):
-        rotation = np.array(extrinsics.rotation).reshape((3,3))
-        translation = np.array(extrinsics.translation).reshape((3,1))
-        self.extrinsics = np.concatenate((rotation, translation), axis=1)
-        self.get_logger().info(f'{self.extrinsics}')
-    
     def get_transformation(self):
         """
         Gets transformation data and calculates the transformation matrix
         """
-        if True:
-            try:
-                # Get transformation data from rgb_camera and depth_camera
-                # Check frame names
-                # trans: TransformStamped = self.tf_buffer.lookup_transform(
-                #     'locobot/camera_link', 'locobot/camera_depth_link', rclpy.time.Time())
-                # ***From Trevor*** = Looking at frame names, at least in sim, I think it should be
-                trans: TransformStamped = self.tf_buffer.lookup_transform(
-                    'camera_locobot_link', 'locobot/camera_depth_link', rclpy.time.Time())
-                # Should be depth to rgb
-                ### **********OTHER TEAM USED 4X4 IDENTITY FOR THIS********** ###
+        # try:
+        #     # Get transformation data from rgb_camera and depth_camera
+        #     # Check frame names
+        #     # trans: TransformStamped = self.tf_buffer.lookup_transform(
+        #     #     'locobot/camera_link', 'locobot/camera_depth_link', rclpy.time.Time())
+        #     # ***From Trevor*** = Looking at frame names, at least in sim, I think it should be
+        #     trans: TransformStamped = self.tf_buffer.lookup_transform(
+        #         'camera_color_optical_frame', 'camera_depth_optical_frame', rclpy.time.Time())
+        #     # Should be depth to rgb
+        #     ### **********OTHER TEAM USED 4X4 IDENTITY FOR THIS********** ###
 
-                # 이동(translation) 정보 추출
-                translation = np.array([trans.transform.translation.x,
-                            trans.transform.translation.y,
-                            trans.transform.translation.z]).reshape((3, 1))
-                
-                # Get rotation info (quaternions)
-                quaternion = np.array([trans.transform.rotation.x,
-                            trans.transform.rotation.y,
-                            trans.transform.rotation.z,
-                            trans.transform.rotation.w])
+        #     # 이동(translation) 정보 추출
+        #     translation = np.array([trans.transform.translation.x,
+        #                 trans.transform.translation.y,
+        #                 trans.transform.translation.z]).reshape((3, 1))
+            
+        #     # Get rotation info (quaternions)
+        #     quaternion = np.array([trans.transform.rotation.x,
+        #                 trans.transform.rotation.y,
+        #                 trans.transform.rotation.z,
+        #                 trans.transform.rotation.w])
 
-                # Create transformation matrix
-                rotation = quaternion_to_rotation_matrix(quaternion)
-                transform_mat = np.concatenate((rotation, translation), axis=1)
+        #     # Create transformation matrix
+        #     rotation = quaternion_to_rotation_matrix(quaternion)
+        #     transform_mat = np.concatenate((rotation, translation), axis=1)
 
-                # Print transformation matrix
-                #self.get_logger().info(f'Transformation Matrix:\n{transform_mat}')
-                # *** Clutters output
+        #     # Print transformation matrix
+        #     #self.get_logger().info(f'Transformation Matrix:\n{transform_mat}')
+        #     # *** Clutters output
 
-                return transform_mat
+        #     return transform_mat
 
-            except tf2_ros.LookupException as e:
-                self.get_logger().error('Transform not available.')
-                self.get_logger().error(f'{e}')
-            except tf2_ros.ConnectivityException:
-                self.get_logger().error('Connectivity issue.')
-            except tf2_ros.ExtrapolationException:
-                self.get_logger().error('Extrapolation error.')
-        else:
-            return self.extrinsics
+        # except tf2_ros.LookupException as e:
+        #     self.get_logger().error('Transform not available.')
+        #     self.get_logger().error(f'{e}')
+        #     return np.concatenate([np.eye(3), np.zeros((3,1))], axis=1)
+        # except tf2_ros.ConnectivityException:
+        #     self.get_logger().error('Connectivity issue.')
+        # except tf2_ros.ExtrapolationException:
+        #     self.get_logger().error('Extrapolation error.')
+
+        return np.concatenate([np.eye(3), np.zeros((3,1))], axis=1)
     
     def gripper_callback(self, msg):
         if msg.data == "Success":
@@ -202,8 +200,7 @@ class Sable_ScanApproachNode(Node):
                 self.state_var = "Init"
     
     def ScanImage(self, rgb_imgmsg, depth_imgmsg):
-
-        self.get_logger().info('Camera callback triggered')
+        #self.get_logger().info('Camera callback triggered')
 
         """ STATE MACHINE """   
         if self.state_var == "Init":
@@ -227,25 +224,19 @@ class Sable_ScanApproachNode(Node):
             #     self.destination = None
 
             ### BASE - Ensure continuous rotation ###
-            drivestate_to_post = String()
-            drivestate_to_post.data = "turn"
-            self.drive_state_publisher.publish(drivestate_to_post)
+            self.drive_state_publisher.publish(String(data="turn"))
             #self.get_logger().info(f'Rotate base')
 
             ### ARM - ensure out of camera view ###
-            gripperstate_to_post = String()
-            gripperstate_to_post.data = "wait"
-            self.gripper_state_publisher.publish(gripperstate_to_post)
+            self.gripper_state_publisher.publish(String(data="wait"))
             self.get_logger().info(f'Moved gripper to wait in INIT')
-            time.sleep(10)
+            time.sleep(5)
             
             self.state_var = "RotateFind"
             
         if self.state_var == "RotateFind":
             ### BASE - Ensure continuous rotation ###
-            drivestate_to_post = String()
-            drivestate_to_post.data = "turn"
-            self.drive_state_publisher.publish(drivestate_to_post)
+            self.drive_state_publisher.publish(String(data="turn"))
             #self.get_logger().info(f'Rotate base')
 
             ### ARM - ensure out of camera view ###
@@ -264,82 +255,43 @@ class Sable_ScanApproachNode(Node):
             img_bytes = encoded_image.tobytes()
 
             ### OBJECT LOCALIZATION ###
-            visionImage = vision.Image(content=img_bytes)
-            response = self.client.object_localization(image=visionImage) # Send the image to the API for object localization
-            objects = response.localized_object_annotations # Extract localized object annotations
-            #self.get_logger().info(f'...Looking for {self.desiredObject.lower()}')
-            
-            for object in objects: # Only run if obj detected. Alos, need to check all objects for desired
-                #self.get_logger().info(f'Detected object {object.name.lower()}')
-                
-                if object.name.lower() == self.desiredObject.lower(): # Only run if desired object. Use "name" to detect
-                    center = self.obj_detect.find_center(img_bytes, object.name.lower())
+            center, obj_names = self.obj_detect.find_center(img_bytes, self.desiredObject)
+            #self.get_logger().info(f'{obj_names}')
 
-                    if center is not None:
-                        self.get_logger().info("!!! Desired obj found !!!")
-                        target_point = Point()
+            if center is not None:
+                self.get_logger().info("!!! Desired obj found !!!")
+                target_point = Point()
 
-                        # ***From Trevor - I think cv is in (y,x) format, esp for bgr8. So center ouptuts (y,x), and need to flip
-                        target_point.x = center[0]
-                        target_point.y = center[1]
-                        # ***Determined from testing that sometimes obj detected before center in frame
-                        if self.use_sim:
-                            if target_point.x > 600.0:
-                                target_point.x = 600.0
-                            elif target_point.x < 0.0:
-                                target_point.x = 0.0
-                            
-                            if target_point.y > 480.0:
-                                target_point.y = 480.0
-                            elif target_point.y < 0.0:
-                                target_point.y = 0.0
-                        else:
-                            if target_point.x > 640.0:
-                                target_point.x = 640.0
-                            elif target_point.x < 0.0:
-                                target_point.x = 0.0
-                            
-                            if target_point.y > 480.0:
-                                target_point.y = 480.0
-                            elif target_point.y < 0.0:
-                                target_point.y = 0.0
-                        ### DEPTH ALIGNMENT ###
-                        transform_mat = self.get_transformation()
-                        if (self.depth_K is not None) and (self.rgb_K is not None) and transform_mat is not None:
-                            aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, transform_mat)
-                            target_point.z = float(aligned_depth[int(target_point.y), int(target_point.x)]) # Need integer conversion for indexing, then float for Point publication
-                            #***From Trevor - from testing, images are indexed [row, col] = [y, x]!
-                            self.obj_coord_publisher.publish(target_point)
+                # ***From Trevor - I think cv is in (y,x) format, esp for bgr8. So center ouptuts (y,x), and need to flip
+                target_point.x = center[0]
+                target_point.y = center[1]
+                # ***Determined from testing that sometimes obj detected before center in frame
+                if self.use_sim:
+                    target_point.x, target_point.y = limit_vals(target_point.x, target_point.y, 600.0, 480.0)
+                else:
+                    target_point.x, target_point.y = limit_vals(target_point.x, target_point.y, 640.0, 480.0)
+                ### DEPTH ALIGNMENT ###
+                transform_mat = self.get_transformation()
+                if (self.depth_K is not None) and (self.rgb_K is not None) and transform_mat is not None:
+                    aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, transform_mat)
+                    target_point.z = float(aligned_depth[int(target_point.y), int(target_point.x)]) # Need integer conversion for indexing, then float for Point publication
+                    #***From Trevor - from testing, images are indexed [row, col] = [y, x]!
+                    self.obj_coord_publisher.publish(target_point)
 
-                            ### STATE TRANSITION ###
-                            # Don't change gripper
-                            self.state_var = "Drive2Obj"
-                            #self.state_var = "Grasp" # Go to grasp to stop for testing
+                    ### STATE TRANSITION ###
+                    # Don't change gripper
+                    self.state_var = "Drive2Obj"
+                    #self.state_var = "Grasp" # Go to grasp to stop for testing
 
-                            ### LOGGING (esp for debugging) ###
-                            self.get_logger().info(f'!!! Desired obj at {target_point.x}, {target_point.y}, {target_point.z}')
-                        else:
-                            self.get_logger().info("Missing K matrices :(((")
-
-                    else:
-                        #self.drive_state_publisher.publish(String("turn")) #<-- Handled above
-
-                        # Handled above
-                        pass
+                    ### LOGGING (esp for debugging) ###
+                    self.get_logger().info(f'!!! Desired obj at {target_point.x}, {target_point.y}, {target_point.z}')
+                else:
+                    self.get_logger().info("Missing K matrices :(((")
         
         elif self.state_var == "Drive2Obj":
             ### BASE - Now, drive towards object ###
-            drivestate_to_post = String()
-            drivestate_to_post.data = "go"
-            self.drive_state_publisher.publish(drivestate_to_post)
+            self.drive_state_publisher.publish(String(data="go"))
             self.get_logger().info(f'Go base')
-
-            ### ARM - ensure out of camera view ###
-            # #***From Trevor - Only command once, on init. Doing it a ton is buggy. 
-            # gripperstate_to_post = String()
-            # gripperstate_to_post.data = "wait"
-            # self.gripper_state_publisher.publish(gripperstate_to_post)
-            # #self.get_logger().info(f'Moved gripper to wait')
 
             ### GENERAL IMAGE PROCESSING - Get objects ###
             cv_ColorImage = self.bridge.imgmsg_to_cv2(rgb_imgmsg, desired_encoding='bgr8') # passthrough?
@@ -350,92 +302,60 @@ class Sable_ScanApproachNode(Node):
             img_bytes = encoded_image.tobytes()
 
             ### OBJECT LOCALIZATION ###
-            visionImage = vision.Image(content=img_bytes)
-            response = self.client.object_localization(image=visionImage) # Send the image to the API for object localization
-            objects = response.localized_object_annotations # Extract localized object annotations
-            #self.get_logger().info(f'...Looking for {self.desiredObject.lower()}')
-            
-            for object in objects: # Only run if obj detected. Alos, need to check all objects for desired
-                #self.get_logger().info(f'Detected object {object.name.lower()}')
-                
-                if object.name.lower() == self.desiredObject.lower(): # Only run if desired object. Use "name" to detect
-                    center = self.obj_detect.find_center(img_bytes, object.name.lower())
+            center, obj_names = self.obj_detect.find_center(img_bytes, self.desiredObject)
+            #self.get_logger().info(f'{obj_names}')
+            if center is not None:
+                self.get_logger().info("!!! Desired obj found !!!")
+                target_point = Point()
 
-                    if center is not None:
-                        self.get_logger().info("!!! Desired obj found !!!")
-                        target_point = Point()
+                # ***From Trevor - I think cv is in (y,x) format, esp for bgr8. So center ouptuts (y,x), and need to flip
+                target_point.x = center[0]
+                target_point.y = center[1]
+                # ***Determined from testing that sometimes obj detected before center in frame
+                if self.use_sim:
+                    target_point.x, target_point.y = limit_vals(target_point.x, target_point.y, 600.0, 480.0)
+                else:
+                    target_point.x, target_point.y = limit_vals(target_point.x, target_point.y, 640.0, 480.0)
 
-                        # ***From Trevor - I think cv is in (y,x) format, esp for bgr8. So center ouptuts (y,x), and need to flip
-                        target_point.x = center[0]
-                        target_point.y = center[1]
-                        # ***Determined from testing that sometimes obj detected before center in frame
-                        if self.use_sim:
-                            if target_point.x > 600.0:
-                                target_point.x = 600.0
-                            elif target_point.x < 0.0:
-                                target_point.x = 0.0
-                            
-                            if target_point.y > 480.0:
-                                target_point.y = 480.0
-                            elif target_point.y < 0.0:
-                                target_point.y = 0.0
-                        else:
-                            if target_point.x > 640.0:
-                                target_point.x = 640.0
-                            elif target_point.x < 0.0:
-                                target_point.x = 0.0
-                            
-                            if target_point.y > 480.0:
-                                target_point.y = 480.0
-                            elif target_point.y < 0.0:
-                                target_point.y = 0.0
+                ### DEPTH ALIGNMENT ###
+                if (self.depth_K is not None) and (self.rgb_K is not None):
+                    aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, self.get_transformation())
+                    target_point.z = float(aligned_depth[int(target_point.y), int(target_point.x)]) # Need integer conversion for indexing, then float for Point publication
+                    #***From Trevor - from testing, images are indexed [row, col] = [y, x]!
+                    self.obj_coord_publisher.publish(target_point)
 
-                        ### DEPTH ALIGNMENT ###
-                        if (self.depth_K is not None) and (self.rgb_K is not None):
-                            aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, self.get_transformation())
-                            target_point.z = float(aligned_depth[int(target_point.y), int(target_point.x)]) # Need integer conversion for indexing, then float for Point publication
-                            #***From Trevor - from testing, images are indexed [row, col] = [y, x]!
-                            self.obj_coord_publisher.publish(target_point)
+                    ### STATE TRANSITION ###
+                    # If depth is close enough, switch to next state
+                    if target_point.z < DISTANCE_THRESHOLD:
+                        
+                        self.state_var = "Grasp"
 
-                            ### STATE TRANSITION ###
-                            # If depth is close enough, switch to next state
-                            if target_point.z < DISTANCE_THRESHOLD:
-                                
-                                self.state_var = "Grasp"
+                        # Also immediately post a stop (for responsiveness)
+                        self.drive_state_publisher.publish(String(data="stop"))
+                        self.get_logger().info(f'Stopping...')
 
-                                # Also immediately post a stop (for responsiveness)
-                                drivestate_to_post = String()
-                                drivestate_to_post.data = "stop"
-                                self.drive_state_publisher.publish(drivestate_to_post)
-                                self.get_logger().info(f'Stopping...')
+                        time.sleep(3) # Short pause to ensure stopped before sending
 
-                                time.sleep(3) # Short pause to ensure stopped before sending
+                        # DO change gripper. For first test, only post on transition (don't flood)
+                        # Concerns with position changing, but target constantly updated, so probably ok?
+                        #***From Trevor - Only command once, on change. Doing it a ton is buggy. 
+                        self.gripper_state_publisher.publish(String(data="grab"))
+                        self.get_logger().info(f'Told gripper to GRAB')
 
-                                # DO change gripper. For first test, only post on transition (don't flood)
-                                # Concerns with position changing, but target constantly updated, so probably ok?
-                                #***From Trevor - Only command once, on change. Doing it a ton is buggy. 
-                                gripperstate_to_post = String()
-                                gripperstate_to_post.data = "grab"
-                                self.gripper_state_publisher.publish(gripperstate_to_post)
-                                self.get_logger().info(f'Told gripper to GRAB')
+                        #***From Trevor - Consider only posting grab on NEXT image detection, to ensure stopped and got most recent position?
 
-                                #***From Trevor - Consider only posting grab on NEXT image detection, to ensure stopped and got most recent position?
-
-                            ### LOGGING (esp for debugging) ###
-                            #self.get_logger().info(f'!!! Desired obj at {target_point.x}, {target_point.y}, {target_point.z}')
-                        else:
-                            self.get_logger().info("Missing K matrices :(((")
+                    ### LOGGING (esp for debugging) ###
+                    #self.get_logger().info(f'!!! Desired obj at {target_point.x}, {target_point.y}, {target_point.z}')
+                else:
+                    self.get_logger().info("Missing K matrices :(((")
             else:
                 # Can't see object anymore
-                pass
-                #self.state_var = "RotateFind"
+                self.state_var = "RotateFind"
 
         elif self.state_var == "Grasp":
 
             ### BASE - Now, ensure stop ###
-            drivestate_to_post = String()
-            drivestate_to_post.data = "stop"
-            self.drive_state_publisher.publish(drivestate_to_post)
+            #self.drive_state_publisher.publish(String(data="stop"))
             #self.get_logger().info(f'Stopped')
 
             ### ARM ###
@@ -454,57 +374,32 @@ class Sable_ScanApproachNode(Node):
             img_bytes = encoded_image.tobytes()
 
             ### OBJECT LOCALIZATION ###
-            visionImage = vision.Image(content=img_bytes)
-            response = self.client.object_localization(image=visionImage) # Send the image to the API for object localization
-            objects = response.localized_object_annotations # Extract localized object annotations
-            #self.get_logger().info(f'...Looking for {self.desiredObject.lower()}')
-            
-            for object in objects: # Only run if obj detected. Alos, need to check all objects for desired
-                #self.get_logger().info(f'Detected object {object.name.lower()}')
-                
-                if object.name.lower() == self.desiredObject.lower(): # Only run if desired object. Use "name" to detect
-                    center = self.obj_detect.find_center(img_bytes, object.name.lower())
+            center, obj_names = self.obj_detect.find_center(img_bytes, self.desiredObject)
+            #self.get_logger().info(f'{obj_names}')
+            if center is not None:
+                self.get_logger().info("!!! Desired obj found !!!")
+                target_point = Point()
 
-                    if center is not None:
-                        self.get_logger().info("!!! Desired obj found !!!")
-                        target_point = Point()
+                # ***From Trevor - I think cv is in (y,x) format, esp for bgr8. So center ouptuts (y,x), and need to flip
+                target_point.x = center[0]
+                target_point.y = center[1]
+                # ***Determined from testing that sometimes obj detected before center in frame
+                if self.use_sim:
+                    target_point.x, target_point.y = limit_vals(target_point.x, target_point.y, 600.0, 480.0)
+                else:
+                    target_point.x, target_point.y = limit_vals(target_point.x, target_point.y, 640.0, 480.0)
 
-                        # ***From Trevor - I think cv is in (y,x) format, esp for bgr8. So center ouptuts (y,x), and need to flip
-                        target_point.x = center[0]
-                        target_point.y = center[1]
-                        # ***Determined from testing that sometimes obj detected before center in frame
-                        if self.use_sim:
-                            if target_point.x > 600.0:
-                                target_point.x = 600.0
-                            elif target_point.x < 0.0:
-                                target_point.x = 0.0
-                            
-                            if target_point.y > 480.0:
-                                target_point.y = 480.0
-                            elif target_point.y < 0.0:
-                                target_point.y = 0.0
-                        else:
-                            if target_point.x > 640.0:
-                                target_point.x = 640.0
-                            elif target_point.x < 0.0:
-                                target_point.x = 0.0
-                            
-                            if target_point.y > 480.0:
-                                target_point.y = 480.0
-                            elif target_point.y < 0.0:
-                                target_point.y = 0.0
+                ### DEPTH ALIGNMENT ###
+                if (self.depth_K is not None) and (self.rgb_K is not None):
+                    aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, self.get_transformation())
+                    target_point.z = float(aligned_depth[int(target_point.y), int(target_point.x)]) # Need integer conversion for indexing, then float for Point publication
+                    #***From Trevor - from testing, images are indexed [row, col] = [y, x]!
+                    self.obj_coord_publisher.publish(target_point)
 
-                        ### DEPTH ALIGNMENT ###
-                        if (self.depth_K is not None) and (self.rgb_K is not None):
-                            aligned_depth = align_depth(depth_image, self.depth_K, cv_ColorImage, self.rgb_K, self.get_transformation())
-                            target_point.z = float(aligned_depth[int(target_point.y), int(target_point.x)]) # Need integer conversion for indexing, then float for Point publication
-                            #***From Trevor - from testing, images are indexed [row, col] = [y, x]!
-                            self.obj_coord_publisher.publish(target_point)
-
-                            ### STATE TRANSITION ###
-                            # None for now
-                        else:
-                            self.get_logger().info("Missing K matrices :(((")
+                    ### STATE TRANSITION ###
+                    # None for now
+                else:
+                    self.get_logger().info("Missing K matrices :(((")
     
             
 def quaternion_to_rotation_matrix(quaternion):

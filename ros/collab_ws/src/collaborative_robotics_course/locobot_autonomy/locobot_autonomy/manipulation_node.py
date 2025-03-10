@@ -47,7 +47,7 @@ class ManipulationNode(Node):
         super().__init__('ManipulationNode')
 
         """ CLASS VARIABLES """
-        self.use_sim = True
+        self.use_sim = False
         #Obtain or specify the goal pose for end effector (ee)
         # Initialize desired object coords. Just the startup loc. 
         target_pose = Pose()
@@ -112,9 +112,9 @@ class ManipulationNode(Node):
             """ Convert stored target_pose into a msg to post """
             desired_pose_msg = PoseStamped() # Define pose
             #position
-            desired_pose_msg.pose.position.x = 0.2
+            desired_pose_msg.pose.position.x = 0.0
             desired_pose_msg.pose.position.y = 0.1
-            desired_pose_msg.pose.position.z = 0.1
+            desired_pose_msg.pose.position.z = 0.0
             #orientation - always facing down
             desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
             desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
@@ -128,13 +128,15 @@ class ManipulationNode(Node):
             # No need to sleep, since wont go again for awhile
 
         elif gripper_state == "grab": # Now, actually grab position
+            self.get_logger().info("GRAB CALLBACK#################################")
 
+                           
             """ Convert stored target_pose into a msg to post """
             desired_pose_msg = PoseStamped() # Define pose
             #position
             desired_pose_msg.pose.position.x = float(self.target_pose.position.x)
-            desired_pose_msg.pose.position.y = float(self.target_pose.position.y)
-            desired_pose_msg.pose.position.z = float(self.target_pose.position.z)
+            desired_pose_msg.pose.position.y = float(self.target_pose.position.y + 0.02)
+            desired_pose_msg.pose.position.z = float(self.target_pose.position.z + 0.1)
             #orientation - always facing down
             desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
             desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
@@ -145,6 +147,25 @@ class ManipulationNode(Node):
             self.arm_publisher.publish(desired_pose_msg) # Publish pose
             self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
 
+            time.sleep(2) # Pause to ensure got there
+
+            """ open gripper using publisher"""
+            if self.use_sim:
+                pass
+                # Gripper doesn't work in sim
+                self.get_logger().info(f"Got to position! Would do gripper, but we are in SIM")
+            else:
+                self.get_logger().info(f"Found object! Opening gripper...")
+                gripper_msg = Bool()
+                gripper_msg.data = True # OPEN gripper
+                self.gripper_publisher.publish(gripper_msg)
+
+            time.sleep(2) # Pause to ensure got there
+
+            desired_pose_msg.pose.position.z -= 0.1
+            self.arm_publisher.publish(desired_pose_msg) # Publish pose
+            self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
+
             time.sleep(5) # Pause to ensure got there
 
             """ Close gripper using publisher"""
@@ -152,12 +173,16 @@ class ManipulationNode(Node):
                 pass
                 # Gripper doesn't work in sim
                 self.get_logger().info(f"Got to position! Would do gripper, but we are in SIM")
-            else:
-                self.get_logger().info(f"Got to position! Closing gripper...")
+            else:              
+                self.get_logger().info(f"Closing gripper...")
                 gripper_msg = Bool()
                 gripper_msg.data = False # CLOSE gripper
                 self.gripper_publisher.publish(gripper_msg)
-                self.get_logger().info(f"Closing gripper...")
+            
+            """ Lift up """
+            desired_pose_msg.pose.position.z += 0.2
+            self.arm_publisher.publish(desired_pose_msg) # Publish pose
+            self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
 
 def main(args=None):
     rclpy.init(args=args)

@@ -55,7 +55,6 @@ install(PROGRAMS
   locobot_autonomy/perception/camera_with_sim.py
   locobot_autonomy/perception/align_depth.py
   locobot_autonomy/manipulation_node.py
-  locobot_autonomy/manip_node_v2.py
   locobot_autonomy/node_driver_with_sim.py
   locobot_autonomy/localization_tp.py
   DESTINATION lib/${PROJECT_NAME}

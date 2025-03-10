@@ -49,8 +49,8 @@ class VisionObjectDetector:
             if obj.name.lower() == object_name.lower():
                 found = obj
                 break
-        for object in objects:
-            print("Detected object", object.name.lower())
+        # for object in objects:
+        #     print("Detected object", object.name.lower())
         # Step 5: Once the object is found, determine the position from the bounding box. Hint: obj.bounding_poly returns the bounding box
         if found:
             #corners = objects.bounding_poly.normalized_vertices
@@ -65,10 +65,10 @@ class VisionObjectDetector:
             x_pixel = x_center * width
             y_pixel = y_center * height
 
-            return x_pixel, y_pixel
+            return (x_pixel, y_pixel), [obj.name.lower() for obj in objects]
         
         else:
-            return None
+            return None, [obj.name.lower() for obj in objects]
 
     def annotate_image(self, image_bytes):
         """

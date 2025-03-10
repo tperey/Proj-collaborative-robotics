@@ -42,7 +42,7 @@ class TPLocalizer(Node):
         else:
             self.camera_sub = self.create_subscription(
                 CameraInfo,
-                '/locobot/camera/color/camera_info', #'/locobot/camera/camera_info',
+                '/locobot/camera/camera/color/camera_info', #'/locobot/camera/camera_info',
                 #'/locobot/camera/depth/camera_info',
                 #***From Trevor - We are using Depth TransfMatrix, which seems right, so I think we want depth K
                 # Its like same as normal so don't know that it matters.
@@ -87,7 +87,9 @@ class TPLocalizer(Node):
                 # ***From Trevor - From printing and looking at rotations (and ChatGPT) I think this is right
             else:
                 trans: TransformStamped = self.tf_buffer.lookup_transform(
-                    'locobot/arm_base_link', 'camera_locobot_link', rclpy.time.Time()
+                    'locobot/arm_base_link', 'camera_color_optical_frame', rclpy.time.Time()
+                    
+                    # 'locobot/arm_base_link' 'camera_locobot_link', rclpy.time.Time()
                 )
                 ### **********OTHER TEAM USED COLOR CAMERA, hence the above ********** ###
 
@@ -102,17 +104,19 @@ class TPLocalizer(Node):
                            trans.transform.translation.z]).reshape((3, 1))
             
             # Get rotation info (quaternions)
-            quaternion = np.array([trans.transform.rotation.x,
+            quaternion = np.array([
+                        trans.transform.rotation.x,
                         trans.transform.rotation.y,
                         trans.transform.rotation.z,
-                        trans.transform.rotation.w])
+                        trans.transform.rotation.w,
+                        ])
 
             # Create transformation matrix
             rotation = quaternion_to_rotation_matrix(quaternion)
             transform_mat = np.concatenate((rotation, translation), axis=1)
 
             # Print transformation matrix
-            self.get_logger().info(f'Camera->Base Tf Matrix:\n{transform_mat}')
+            # self.get_logger().info(f'Camera->Base Tf Matrix:\n{transform_mat}')
 
             return transform_mat
 
@@ -137,7 +141,7 @@ class TPLocalizer(Node):
         if not self.use_sim:
             depth = depth/1000
         
-        self.get_logger().info(f'Original K = {K}')
+        # self.get_logger().info(f'Original K = {K}')
         # ***Trevor - some more stuff
         # According to chat GPT, K[0,2] = cx, and K[1,2] = cy, i.e. the centers of the image
         # But, K prints out such that (cx, cy) = (0,0), which is NOT the center! (300, 240) is the center.
@@ -148,7 +152,7 @@ class TPLocalizer(Node):
             # In simulation, this seemed to lead to much better goal points
             # I'm not complete confident in this tho so feel free to change
 
-        self.get_logger().info(f'K = {K}')
+        # self.get_logger().info(f'K = {K}')
         self.get_logger().info(f'pixel_coord = {u}, {v}, {depth}')
         cam_coord = np.ones(4)
         cam_coord[0] = (u - K[0,2]) * depth / K[0,0]
@@ -158,6 +162,8 @@ class TPLocalizer(Node):
             cam_coord[2] = depth
         else:
             cam_coord[2] = depth
+        self.get_logger().info(f'K: \n{K}')
+        self.get_logger().info(f'Extrinsics: \n{extrinsics}')
         self.get_logger().info(f'cam_coord = {cam_coord}')
 
         ### **********OTHER TEAM USED COLOR CAMERA; if we do too, I actually think you need ********** ###
@@ -165,10 +171,20 @@ class TPLocalizer(Node):
         #     cam_coord[0] = depth
         # else:
         #     cam_coord[0] = depth
+
+        # cam_coord[1] = -1*(u - K[0,2]) * depth / K[0,0]
+        # cam_coord[2] = -1*(v - K[1,2]) * depth / K[1,1]
+
+        # self.get_logger().info(f'{K}')
         # self.get_logger().info(f'cam_coord = {cam_coord}')
 
-        # cam_coord[1] = (u - K[0,2]) * depth / K[0,0]
-        # cam_coord[2] = (v - K[1,2]) * depth / K[1,1]
+        
+        # THIS WAS PRETTY GOOD
+        # extrinsics = np.array([
+        #     [0, 0.7, 0.7, -0.0187513],
+        #     [1, 0, 0, 0.03544988],
+        #     [0, 0.7, -0.7, 0.42041003]
+        # ])
 
         return np.dot(extrinsics, cam_coord)
 
@@ -182,7 +198,7 @@ def quaternion_to_rotation_matrix(quaternion):
     Returns:
         np.array: A 3x3 numpy array representing the rotation matrix.
     """
-    w, x, y, z = quaternion
+    x, y, z, w = quaternion
     
     # Compute the rotation matrix elements
     r00 = 1 - 2*y**2 - 2*z**2

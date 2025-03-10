@@ -79,15 +79,15 @@ class Sable_Driver(Node):
                     vel = Twist()
                     vel.angular.z = CRCT_TURN_SPEED # Degrees per (turn_time) sec. So min of 2º per sec
                     vel.linear.x = 0.0
-                    self.get_logger().info(f'+++POSITIVE twist')
+                    # self.get_logger().info(f'+++POSITIVE twist')
                 elif base_misalignment <= -1*ANGLE_CUTOFF: # Angle is NEGATIVE. Meaning y is NEGATIVE. Need CW rot (negative turn)
                     vel.angular.z = -1*CRCT_TURN_SPEED # Degrees per (turn_time) sec. So min of 2º per sec
                     vel.linear.x = 0.0
-                    self.get_logger().info(f'---NEGATIVE twist')
+                    # self.get_logger().info(f'---NEGATIVE twist')
                 else:
                     vel.angular.z = 0.0 # Don't correct
                     vel.linear.x = FWD_SPEED
-                    self.get_logger().info(f'No twist')
+                    # self.get_logger().info(f'No twist')
 
                 vel.linear.y = 0.0 # Others are static
                 vel.linear.z = 0.0
@@ -127,7 +127,7 @@ class Sable_Driver(Node):
 
                 self.twist_publisher.publish(rotatemsg)
 
-                self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
+                # self.get_logger().info(f'Moved base in sim as {rotatemsg.linear}, {rotatemsg.angular}')
             else:
                 self.locobot.base.command_velocity_xyaw(0,0.2)
 

@@ -5,7 +5,6 @@ import numpy as np
 import cv2
 from cv_bridge import CvBridge
 import os
-from google.cloud import vision
 
 import rclpy
 from rclpy.node import Node
@@ -44,7 +43,6 @@ class ScanApproachNode(Node):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.json_key_path
 
         self.bridge = CvBridge()
-        self.client = vision.ImageAnnotatorClient()
 
         self.speech = SpeechTranscriber()
         self.obj_detect = VisionObjectDetector()
@@ -179,10 +177,10 @@ class ScanApproachNode(Node):
 
             ### Gripper ###
             # Tell gripper to move out of camera view
-            self.gripper_state_publisher.publish(String("wait"))
+            self.gripper_state_publisher.publish(String(data="wait"))
 
             ### Arm ###
-            self.drive_state_publisher.publish(String("turn"))
+            self.drive_state_publisher.publish(String(data="turn"))
             
             self.state_var = "RotateFind"
             
@@ -211,13 +209,13 @@ class ScanApproachNode(Node):
                 self.obj_coord_publisher(target_point)
 
                 # State transition
-                self.drive_state_publisher.publish(String("go"))
+                self.drive_state_publisher.publish(String(data="go"))
 
                 # Don't change gripper
 
                 self.state_var = "Drive2Obj"
             else:
-                self.drive_state_publisher.publish(String("turn"))
+                self.drive_state_publisher.publish(String(data="turn"))
         
         elif self.state_var == "Drive2Obj":
             ### DRIVE TOWARDS OBJECT ###
@@ -247,7 +245,7 @@ class ScanApproachNode(Node):
                 self.obj_coord_publisher(target_point)
 
                 # State transition
-                self.drive_state_publisher.publish(String("go")) # Stop in btw for carefulness
+                self.drive_state_publisher.publish(String(data="go")) # Stop in btw for carefulness
 
                 # Don't change gripper
                 
@@ -260,8 +258,8 @@ class ScanApproachNode(Node):
                 self.state_var = "RotateFind"
 
         if self.state_var == "Grasp":
-            self.drive_state_publisher.publish(String("stop"))
-            self.gripper_state_publisher.publish(String("grab"))
+            self.drive_state_publisher.publish(String(data="stop"))
+            self.gripper_state_publisher.publish(String(data="grab"))
 
 def quaternion_to_rotation_matrix(quaternion):
     """
