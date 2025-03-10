@@ -37,6 +37,13 @@ class ArmWrapperNode(Node):
             10
         )
 
+        self.home_subscriber = self.create_subscription(
+            Bool,
+            '/go_home',
+            self.home_callback,
+            10
+        )
+
         self._action_client = ActionClient(
             self,
             MoveArm,
@@ -55,6 +62,10 @@ class ArmWrapperNode(Node):
             robot_name='locobot',
             arm_model='mobile_wx250s'
             )
+    
+    def home_callback(self, msg):
+        if msg.data:
+            self.locobot.arm.go_to_sleep_pose()
 
     def pose_callback(self, msg):
         # Log the received PoseStamped message

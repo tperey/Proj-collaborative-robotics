@@ -12,7 +12,7 @@ from sensor_msgs.msg import Image
 
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Point
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from sensor_msgs.msg import CameraInfo
 
@@ -69,7 +69,7 @@ class Sable_ScanApproachNode(Node):
         if self.use_sim:
             self.desiredObject = "suitcase" # CHANGE TO CHANGE DESIRED OBJECT
         else:
-            self.desiredObject = "strawberry"#"apple" # CHANGE TO CHANGE DESIRED OBJECT
+            self.desiredObject = "bottle"#strawberry"#"apple" # CHANGE TO CHANGE DESIRED OBJECT
         self.destination = None
 
         """ PUBLISHERS """
@@ -169,7 +169,7 @@ class Sable_ScanApproachNode(Node):
 
         ### OBJECT LOCALIZATION ###
         center, obj_names = self.obj_detect.find_center(img_bytes, self.desiredObject)
-        #self.get_logger().info(f'{obj_names}')
+        self.get_logger().info(f'{obj_names}')
 
         if center is not None:
             self.get_logger().info("!!! Desired obj found !!!")
@@ -224,7 +224,7 @@ class Sable_ScanApproachNode(Node):
             ### ARM - ensure out of camera view ###
             self.gripper_state_publisher.publish(String(data="wait"))
             self.get_logger().info(f'Moved gripper to wait in INIT')
-            time.sleep(5)
+            time.sleep(8)
             
             self.state_var = "RotateFind"
             

@@ -37,6 +37,11 @@ import time
 # R = Identity, p = [0.501, 0, 0.429]
 # Pick something that makes sense with that
 
+OFFSET_Z = 0.15
+Z_LIMIT = 0.2
+OFFSET_X = 0.07
+X_LIMIT = 0.0
+
 class ManipulationNode(Node):
     """Class for simple object grabbing, assuming position is passed to it
     """
@@ -48,6 +53,8 @@ class ManipulationNode(Node):
 
         """ CLASS VARIABLES """
         self.use_sim = False
+        self.doPour = True
+        self.topApproach = False
         #Obtain or specify the goal pose for end effector (ee)
         # Initialize desired object coords. Just the startup loc. 
         target_pose = Pose()
@@ -81,6 +88,7 @@ class ManipulationNode(Node):
         """ PUBLISHERS """
         self.arm_publisher = self.create_publisher(PoseStamped, "/arm_pose", 10) # Arbitrarily queued 10
         self.gripper_publisher = self.create_publisher(Bool, '/gripper', 10)
+        self.sleep_publisher = self.create_publisher(Bool, "/go_home", 10)
         
         # Acknowledge node start
         self.get_logger().info('ManipulationNode has started')
@@ -109,43 +117,55 @@ class ManipulationNode(Node):
 
         if gripper_state == "wait":
             # Move arm out of the way
-            """ Convert stored target_pose into a msg to post """
-            desired_pose_msg = PoseStamped() # Define pose
-            #position
-            desired_pose_msg.pose.position.x = 0.0
-            desired_pose_msg.pose.position.y = 0.1
-            desired_pose_msg.pose.position.z = 0.0
-            #orientation - always facing down
-            desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
-            desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
-            desired_pose_msg.pose.orientation.z = 0.0
-            desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
-
-            """ Move arm using publisher """
-            self.arm_publisher.publish(desired_pose_msg) # Publish pose
-            self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
-            # Code should be inherently blocking
-            # No need to sleep, since wont go again for awhile
+            self.get_logger().info("Going home...")
+            self.sleep_publisher.publish(Bool(data=True))
 
         elif gripper_state == "grab": # Now, actually grab position
             self.get_logger().info("GRAB CALLBACK#################################")
 
                            
-            """ Convert stored target_pose into a msg to post """
+            """ INITIAL APPROACH - Convert stored target_pose into a msg to post """
             desired_pose_msg = PoseStamped() # Define pose
             #position
-            desired_pose_msg.pose.position.x = float(self.target_pose.position.x)
-            desired_pose_msg.pose.position.y = float(self.target_pose.position.y + 0.02)
-            desired_pose_msg.pose.position.z = float(self.target_pose.position.z + 0.1)
-            #orientation - always facing down
-            desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
-            desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
-            desired_pose_msg.pose.orientation.z = 0.0
-            desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
+            desired_pose_msg.pose.position.x = max(float(self.target_pose.position.x - OFFSET_X), X_LIMIT)
+            desired_pose_msg.pose.position.y = float(self.target_pose.position.y + 0.03)
+            desired_pose_msg.pose.position.z = min(float(self.target_pose.position.z + OFFSET_Z), Z_LIMIT)
+            #orientation
+            
+            if self.topApproach:
+                # always facing down
+                desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
+                desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
+                desired_pose_msg.pose.orientation.z = 0.0
+                desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
+               
+                """ Move arm using publisher """
+                self.arm_publisher.publish(desired_pose_msg) # Publish pose
+                self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
 
-            """ Move arm using publisher """
-            self.arm_publisher.publish(desired_pose_msg) # Publish pose
-            self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
+            else:
+                # always facing down
+                desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
+                desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
+                desired_pose_msg.pose.orientation.z = 0.0
+                desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
+               
+                """ Move arm using publisher """
+                self.arm_publisher.publish(desired_pose_msg) # Publish pose
+                self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
+
+                time.sleep(2) 
+
+                # orientation - straight
+                desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
+                desired_pose_msg.pose.orientation.y = 0.0
+                desired_pose_msg.pose.orientation.z = 0.0
+                desired_pose_msg.pose.orientation.w = 1.0
+
+                """ Move arm using publisher """
+                self.arm_publisher.publish(desired_pose_msg) # Publish pose
+                self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
+            
 
             time.sleep(2) # Pause to ensure got there
 
@@ -162,11 +182,18 @@ class ManipulationNode(Node):
 
             time.sleep(2) # Pause to ensure got there
 
-            desired_pose_msg.pose.position.z -= 0.1
+            """ Lower arm onto object """
+            desired_pose_msg.pose.position.z = self.target_pose.position.z
             self.arm_publisher.publish(desired_pose_msg) # Publish pose
             self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
 
-            time.sleep(2) # Pause to ensure got there
+            time.sleep(4) # Pause to ensure got there
+
+            desired_pose_msg.pose.position.x = self.target_pose.position.x
+            self.arm_publisher.publish(desired_pose_msg) # Publish pose
+            self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
+
+            time.sleep(4) # Pause to ensure got there
 
             """ Close gripper using publisher"""
             if self.use_sim:
@@ -179,12 +206,48 @@ class ManipulationNode(Node):
                 gripper_msg.data = False # CLOSE gripper
                 self.gripper_publisher.publish(gripper_msg)
             
-            time.sleep(2) # Pause to ensure got there
+            time.sleep(4) # Pause to ensure got there
 
             """ Lift up """
-            desired_pose_msg.pose.position.z += 0.2
+            desired_pose_msg.pose.position.z = min(self.target_pose.position.z+OFFSET_Z, Z_LIMIT)
             self.arm_publisher.publish(desired_pose_msg) # Publish pose
             self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
+
+            time.sleep(4) # Pause to ensure got there
+            """ POUR """
+            if self.doPour:
+                
+                # Straighten out
+                desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
+                desired_pose_msg.pose.orientation.y = 0.0
+                desired_pose_msg.pose.orientation.z = 0.0
+                desired_pose_msg.pose.orientation.w = 1.0
+
+                self.arm_publisher.publish(desired_pose_msg) # Publish pose
+                self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
+
+                time.sleep(4) # Pause to ensure got there
+            
+                # Straighten out
+                """ 60 degrees """
+                # desired_pose_msg.pose.orientation.w = np.sqrt(3)*0.5
+                # desired_pose_msg.pose.orientation.x = 0.5 # REQUIRES FLOATS
+                # desired_pose_msg.pose.orientation.y = 0.0
+                # desired_pose_msg.pose.orientation.z = 0.0
+                """ 90 degrees"""
+                desired_pose_msg.pose.orientation.w = np.sqrt(2)*0.5
+                desired_pose_msg.pose.orientation.x = np.sqrt(2)*0.5 # REQUIRES FLOATS
+                desired_pose_msg.pose.orientation.y = 0.0
+                desired_pose_msg.pose.orientation.z = 0.0
+                
+
+                self.arm_publisher.publish(desired_pose_msg) # Publish pose
+                self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
+
+                time.sleep(2) # Pause to ensure got there
+
+
+
 
 def main(args=None):
     rclpy.init(args=args)

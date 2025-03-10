@@ -46,7 +46,7 @@ class VisionObjectDetector:
         # Step 4: Search for the specified object. Hint: Objects returns all detected objects
         found = None
         for obj in objects:
-            if obj.name.lower() == object_name.lower():
+            if object_name.lower() in obj.name.lower():
                 found = obj
                 break
         # for object in objects:

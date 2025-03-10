@@ -153,7 +153,7 @@ class TPLocalizer(Node):
             # I'm not complete confident in this tho so feel free to change
 
         # self.get_logger().info(f'K = {K}')
-        self.get_logger().info(f'pixel_coord = {u}, {v}, {depth}')
+        #self.get_logger().info(f'pixel_coord = {u}, {v}, {depth}')
         cam_coord = np.ones(4)
         cam_coord[0] = (u - K[0,2]) * depth / K[0,0]
         cam_coord[1] = (v - K[1,2]) * depth / K[1,1]
@@ -162,9 +162,9 @@ class TPLocalizer(Node):
             cam_coord[2] = depth
         else:
             cam_coord[2] = depth
-        self.get_logger().info(f'K: \n{K}')
-        self.get_logger().info(f'Extrinsics: \n{extrinsics}')
-        self.get_logger().info(f'cam_coord = {cam_coord}')
+        #self.get_logger().info(f'K: \n{K}')
+        #self.get_logger().info(f'Extrinsics: \n{extrinsics}')
+        #self.get_logger().info(f'cam_coord = {cam_coord}')
 
         ### **********OTHER TEAM USED COLOR CAMERA; if we do too, I actually think you need ********** ###
         # if self.use_sim:
