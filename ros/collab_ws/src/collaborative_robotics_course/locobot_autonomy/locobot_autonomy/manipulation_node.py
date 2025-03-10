@@ -166,7 +166,7 @@ class ManipulationNode(Node):
             self.arm_publisher.publish(desired_pose_msg) # Publish pose
             self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
 
-            time.sleep(5) # Pause to ensure got there
+            time.sleep(2) # Pause to ensure got there
 
             """ Close gripper using publisher"""
             if self.use_sim:
@@ -179,6 +179,8 @@ class ManipulationNode(Node):
                 gripper_msg.data = False # CLOSE gripper
                 self.gripper_publisher.publish(gripper_msg)
             
+            time.sleep(2) # Pause to ensure got there
+
             """ Lift up """
             desired_pose_msg.pose.position.z += 0.2
             self.arm_publisher.publish(desired_pose_msg) # Publish pose
