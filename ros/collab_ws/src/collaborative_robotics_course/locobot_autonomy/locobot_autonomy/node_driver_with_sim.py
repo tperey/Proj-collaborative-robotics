@@ -11,14 +11,14 @@ CRCT_TURN_SPEED = 0.5 #***From Trevor - idk units
 ANGLE_CUTOFF = 10.0 #***From Trevor - degrees
 TURN_TIME = 10.0 # Seconds for rotational correction 
 
-FWD_SPEED = 0.7 #***From Trevor - m/s I guess?
-FINDING_ROT_SPEED = -0.8 #***From Trevor - quite slow but ensures detectionresponsiveness
+FWD_SPEED = 0.3 #***From Trevor - m/s I guess?
+FINDING_ROT_SPEED = -0.1 #***From Trevor - quite slow but ensures detectionresponsiveness
 
 class Sable_Driver(Node):
     def __init__(self):
         super().__init__('driver_node')
          # Declare the parameter 'use_sim' with a default value of ***TRUE***
-        self.declare_parameter('use_sim', True)
+        self.declare_parameter('use_sim', False)
         
         # Get the parameter value
         self.use_sim = self.get_parameter('use_sim').get_parameter_value().bool_value

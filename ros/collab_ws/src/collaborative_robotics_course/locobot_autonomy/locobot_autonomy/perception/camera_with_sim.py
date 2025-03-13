@@ -279,11 +279,11 @@ class Sable_ScanApproachNode(Node):
         
         elif self.state_var == "Drive2Obj":
             ### BASE - Now, drive towards object ###
-            self.drive_state_publisher.publish(String(data="go"))
-            self.get_logger().info(f'Go base')
 
             target_point = self.image_processing(rgb_imgmsg, depth_imgmsg)
             if target_point is not None:
+                self.drive_state_publisher.publish(String(data="go"))
+                self.get_logger().info(f'Go base {target_point.z}')
                 self.obj_coord_publisher.publish(target_point)
 
                 ### STATE TRANSITION ###
