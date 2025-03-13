@@ -19,9 +19,9 @@ from sensor_msgs.msg import CameraInfo
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 import tf2_ros
 
-#from verbal import SpeechTranscriber
+from verbal import SpeechTranscriber
 from find_center import VisionObjectDetector
-#import google.generativeai as genai
+import google.generativeai as genai
 from align_depth import align_depth
 
 import time
@@ -61,21 +61,22 @@ class Sable_ScanApproachNode(Node):
 
         self.bridge = CvBridge()
 
-        #self.speech = SpeechTranscriber()
+        self.speech = SpeechTranscriber()
         self.obj_detect = VisionObjectDetector()
-        #self.gemini = genai.GenerativeModel("gemini-1.5-flash")
+        self.gemini = genai.GenerativeModel("gemini-1.5-flash")
 
         self.task = "retrieve"
         if self.use_sim:
             self.desiredObject = "suitcase" # CHANGE TO CHANGE DESIRED OBJECT
         else:
-            self.desiredObject = "bottle"#strawberry"#"apple" # CHANGE TO CHANGE DESIRED OBJECT
+            self.desiredObject = "package" #"strawberry"#"apple" # CHANGE TO CHANGE DESIRED OBJECT
         self.destination = None
 
         """ PUBLISHERS """
         self.drive_state_publisher = self.create_publisher(String, "/drive_state", 10)
         self.obj_coord_publisher = self.create_publisher(Point, "/target_point", 10)
         self.gripper_state_publisher = self.create_publisher(String, "/gripper_state", 10)
+        self.object_publisher = self.create_publisher(String, "/desired_object", 10)
 
         # Direct commands
         #self.base_twist_publisher = self.create_publisher(Twist, "/base_twist", 10) # For directly commanding base driver
@@ -123,7 +124,7 @@ class Sable_ScanApproachNode(Node):
         camera_sub = ApproximateTimeSynchronizer([rgb_camera, depth_camera], 10, 1)
         camera_sub.registerCallback(self.ScanImage)
         
-        self.create_subscription(String, "/gripper_success", self.gripper_callback, 10)
+        self.create_subscription(Bool, "/gripper_success", self.success_callback, 10)
 
         self.get_logger().info('Subscribers created')
 
@@ -148,8 +149,9 @@ class Sable_ScanApproachNode(Node):
         """
         return np.concatenate([np.eye(3), np.zeros((3,1))], axis=1)
     
-    def gripper_callback(self, msg):
-        if msg.data == "Success":
+    def success_callback(self, msg):
+        if msg.data:
+            self.get_logger().info("GRASP SUCCEEDED!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             if self.destination is not None:
                 # Retrieve task.
                 self.state_var = "RotateFind"
@@ -169,6 +171,9 @@ class Sable_ScanApproachNode(Node):
 
         ### OBJECT LOCALIZATION ###
         center, obj_names = self.obj_detect.find_center(img_bytes, self.desiredObject)
+        if self.desiredObject in obj_names:
+            self.get_logger().info("FOUND OBJECT IN IMAGE_PROCESSING")
+            self.get_logger().info(f"{center}")
         self.get_logger().info(f'{obj_names}')
 
         if center is not None:
@@ -201,21 +206,41 @@ class Sable_ScanApproachNode(Node):
             ### EXECUTE INITIALIZATION ###
 
             # Listen and get task
-            # transcribed_audio = self.speech.record_audio("temp.wav")[0]
+            # self.get_logger().info("~~~SPEAK NOW!!!~~~")
+            # transcribed_audio = self.speech.record_audio(duration = 5)[0]
+            # self.get_logger().info(transcribed_audio)
+            # self.get_logger().info("~ Recording over ~")
             
             # response = self.gemini.generate_content(
-            #     "In the given voice transcript, identify the main action being required - retrieve or place. Then identify the main object."+\
-            #         "Return only the action and object in lowercase and do not include any whitespaces, punctuation, or new lines other than a single whitespace between the action and object. "+\
+            #     "In the given voice transcript, what is the main task - retrieve, place, or pour?"+\
+            #         "Return only the action in lowercase and do not include any whitespaces, punctuation, or new lines. "+\
             #         "Here is the voice transcript: " + transcribed_audio)
-            # self.task, self.desiredObject = response.text.split()
-            # if task == "place":
+            # self.task = response.text.strip()
+            # self.get_logger().info(f"Detected task {self.task}")
+
+            # response = self.gemini.generate_content(
+            #     "In the given voice transcript, what is the main object?"+\
+            #         "Return only the object in lowercase and do not include any whitespaces, punctuation, or new lines. "+\
+            #         "Here is the voice transcript: " + transcribed_audio)
+            # self.desiredObject = response.text.strip()
+            # self.get_logger().info(f"Detected object {self.desiredObject}")
+
+            # if self.task == "place":
             #     response = self.gemini.generate_content("In the given voice transcript, where does the user want to have the object placed? "+\
             #                                             "Return only the destination in lowercase and do not include any whitespaces, punctuation, or new lines. "+\
             #                                                 "Here is the voice transcript: " + transcribed_audio)
-            #     self.destination = response.text
+            #     self.destination = response.text.strip()
+            # elif self.task == "retrieve" or self.task == "pour":
+            #     self.destination = "person"
             # else:
-            #     #Not sure how to define return point when retrieving - "person" will probably be too many results.
-            #     self.destination = None
+            #     #error
+            #     return
+            self.task = "pour"
+            self.desiredObject = "package"
+            self.destination = "person"
+
+            ### Send out object
+            self.object_publisher.publish(String(data=self.desiredObject))
 
             ### BASE - Ensure continuous rotation ###
             self.drive_state_publisher.publish(String(data="turn"))
@@ -250,7 +275,7 @@ class Sable_ScanApproachNode(Node):
                 #self.state_var = "Grasp" # Go to grasp to stop for testing
 
                 ### LOGGING (esp for debugging) ###
-                self.get_logger().info(f'!!! Desired obj at {target_point.x}, {target_point.y}, {target_point.z}')
+                self.get_logger().info(f'!!! Desired obj {self.desiredObject} at {target_point.x}, {target_point.y}, {target_point.z}')
         
         elif self.state_var == "Drive2Obj":
             ### BASE - Now, drive towards object ###
@@ -276,8 +301,12 @@ class Sable_ScanApproachNode(Node):
                     # DO change gripper. For first test, only post on transition (don't flood)
                     # Concerns with position changing, but target constantly updated, so probably ok?
                     #***From Trevor - Only command once, on change. Doing it a ton is buggy. 
-                    self.gripper_state_publisher.publish(String(data="grab"))
-                    self.get_logger().info(f'Told gripper to GRAB')
+                    if self.destination is not None:
+                        self.gripper_state_publisher.publish(String(data="grab"))
+                        self.get_logger().info(f'Told gripper to GRAB')
+                    else:
+                        self.gripper_state_publisher.publish(String(data="hand"))
+                        self.get_logger().info(f'Told gripper to HAND')
 
                     #***From Trevor - Consider only posting grab on NEXT image detection, to ensure stopped and got most recent position?
 
@@ -285,7 +314,8 @@ class Sable_ScanApproachNode(Node):
                 #self.get_logger().info(f'!!! Desired obj at {target_point.x}, {target_point.y}, {target_point.z}')
             else:
                 # Can't see object anymore
-                self.state_var = "RotateFind"
+                #self.state_var = "RotateFind"
+                pass
 
         elif self.state_var == "Grasp":
 

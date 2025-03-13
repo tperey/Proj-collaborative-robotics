@@ -84,14 +84,34 @@ class ManipulationNode(Node):
             self.gripper_state_callback, # Drives the gripper
             10 # Just chosen randomly
         )
+        self.object_subscriber = self.create_subscription(
+            String,
+            '/desired_object',
+            self.object_callback,
+            10
+        )
 
         """ PUBLISHERS """
         self.arm_publisher = self.create_publisher(PoseStamped, "/arm_pose", 10) # Arbitrarily queued 10
         self.gripper_publisher = self.create_publisher(Bool, '/gripper', 10)
         self.sleep_publisher = self.create_publisher(Bool, "/go_home", 10)
+        self.success_publisher = self.create_publisher(Bool, '/gripper_success', 10)
         
         # Acknowledge node start
         self.get_logger().info('ManipulationNode has started')
+    
+    def object_callback(self, msg):
+        self.get_logger().info(f'ManipNode got {msg.data}')
+        if msg.data == "strawberry":
+            self.topApproach = True
+            self.doPour = False
+        elif msg.data == "package":
+            self.topApproach = False
+            self.doPour = True
+        else:
+            #error
+            return
+        self.get_logger().info(f'topApproach is {self.topApproach}, doPour is {self.doPour}')
     
     def goal_coord_callback(self, msg):
 
@@ -119,81 +139,96 @@ class ManipulationNode(Node):
             # Move arm out of the way
             self.get_logger().info("Going home...")
             self.sleep_publisher.publish(Bool(data=True))
+            self.success_publisher.publish(Bool(data=False))
 
         elif gripper_state == "grab": # Now, actually grab position
             self.get_logger().info("GRAB CALLBACK#################################")
-
-                           
-            """ INITIAL APPROACH - Convert stored target_pose into a msg to post """
-            desired_pose_msg = PoseStamped() # Define pose
-            #position
-            desired_pose_msg.pose.position.x = max(float(self.target_pose.position.x - OFFSET_X), X_LIMIT)
-            desired_pose_msg.pose.position.y = float(self.target_pose.position.y + 0.03)
-            desired_pose_msg.pose.position.z = min(float(self.target_pose.position.z + OFFSET_Z), Z_LIMIT)
-            #orientation
-            
+                       
             if self.topApproach:
-                # always facing down
+                """ INITIAL APPROACH - Convert stored target_pose into a msg to post """
+                desired_pose_msg = PoseStamped() # Define pose
+                #position
+                desired_pose_msg.pose.position.x = max(float(self.target_pose.position.x - OFFSET_X), X_LIMIT)
+                desired_pose_msg.pose.position.y = float(self.target_pose.position.y + 0.03)
+                desired_pose_msg.pose.position.z = min(float(self.target_pose.position.z + OFFSET_Z), Z_LIMIT)
+                #orientation
                 desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
                 desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
                 desired_pose_msg.pose.orientation.z = 0.0
                 desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
                
-                """ Move arm using publisher """
+                """ Move arm ABOVE using publisher """
                 self.arm_publisher.publish(desired_pose_msg) # Publish pose
                 self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
+
+                time.sleep(2) # Pause to ensure got there
+
+                """ open gripper using publisher"""
+                if self.use_sim:
+                    pass
+                    # Gripper doesn't work in sim
+                    self.get_logger().info(f"Got to position! Would do gripper, but we are in SIM")
+                else:
+                    self.get_logger().info(f"Found object! Opening gripper...")
+                    gripper_msg = Bool()
+                    gripper_msg.data = True # OPEN gripper
+                    self.gripper_publisher.publish(gripper_msg)
+
+                time.sleep(2) # Pause to ensure got there
+
+                """ Lower arm onto object """
+                desired_pose_msg.pose.position.z = self.target_pose.position.z+0.01
+                self.arm_publisher.publish(desired_pose_msg) # Publish pose
+                self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
+
+                time.sleep(4) # Pause to ensure got there
+
+                """ Move arm into bottle """
+                desired_pose_msg.pose.position.x = self.target_pose.position.x
+                self.arm_publisher.publish(desired_pose_msg) # Publish pose
+                self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
+
+                time.sleep(4) # Pause to ensure got there
 
             else:
-                # always facing down
-                desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
-                desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
-                desired_pose_msg.pose.orientation.z = 0.0
-                desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
-               
-                """ Move arm using publisher """
-                self.arm_publisher.publish(desired_pose_msg) # Publish pose
-                self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
-
-                time.sleep(2) 
-
+                """ INITIAL APPROACH - Convert stored target_pose into a msg to post """
+                desired_pose_msg = PoseStamped() # Define pose
+                #position
+                desired_pose_msg.pose.position.x = max(float(self.target_pose.position.x - 0.02), X_LIMIT)
+                desired_pose_msg.pose.position.y = float(self.target_pose.position.y + 0.02)
+                desired_pose_msg.pose.position.z = min(float(self.target_pose.position.z + 0.02), Z_LIMIT) # No z offset now
                 # orientation - straight
                 desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
                 desired_pose_msg.pose.orientation.y = 0.0
                 desired_pose_msg.pose.orientation.z = 0.0
                 desired_pose_msg.pose.orientation.w = 1.0
 
-                """ Move arm using publisher """
+                """ Move arm BEHIND using publisher """
                 self.arm_publisher.publish(desired_pose_msg) # Publish pose
                 self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
             
+                time.sleep(2) # Pause to ensure got there
 
-            time.sleep(2) # Pause to ensure got there
+                """ open gripper using publisher"""
+                if self.use_sim:
+                    pass
+                    # Gripper doesn't work in sim
+                    self.get_logger().info(f"Got to position! Would do gripper, but we are in SIM")
+                else:
+                    self.get_logger().info(f"Found object! Opening gripper...")
+                    gripper_msg = Bool()
+                    gripper_msg.data = True # OPEN gripper
+                    self.gripper_publisher.publish(gripper_msg)
 
-            """ open gripper using publisher"""
-            if self.use_sim:
-                pass
-                # Gripper doesn't work in sim
-                self.get_logger().info(f"Got to position! Would do gripper, but we are in SIM")
-            else:
-                self.get_logger().info(f"Found object! Opening gripper...")
-                gripper_msg = Bool()
-                gripper_msg.data = True # OPEN gripper
-                self.gripper_publisher.publish(gripper_msg)
+                time.sleep(4) # Pause to ensure got there
 
-            time.sleep(2) # Pause to ensure got there
+                """ Move arm into bottle """
+                desired_pose_msg.pose.position.x = desired_pose_msg.pose.position.x + 0.07
+                desired_pose_msg.pose.position.z = desired_pose_msg.pose.position.z - 0.03
+                self.arm_publisher.publish(desired_pose_msg) # Publish pose
+                self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
 
-            """ Lower arm onto object """
-            desired_pose_msg.pose.position.z = self.target_pose.position.z
-            self.arm_publisher.publish(desired_pose_msg) # Publish pose
-            self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
-
-            time.sleep(4) # Pause to ensure got there
-
-            desired_pose_msg.pose.position.x = self.target_pose.position.x
-            self.arm_publisher.publish(desired_pose_msg) # Publish pose
-            self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
-
-            time.sleep(4) # Pause to ensure got there
+                time.sleep(4) # Pause to ensure got there
 
             """ Close gripper using publisher"""
             if self.use_sim:
@@ -214,20 +249,40 @@ class ManipulationNode(Node):
             self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
 
             time.sleep(4) # Pause to ensure got there
-            """ POUR """
-            if self.doPour:
-                
-                # Straighten out
+            
+            self.success_publisher.publish(Bool(data=True))
+
+            # Now go home
+            self.get_logger().info("Going home...")
+            self.sleep_publisher.publish(Bool(data=True))
+
+            time.sleep(2) # Pause to ensure
+        
+        elif gripper_state == "hand":
+            desired_pose_msg = PoseStamped() # Define pose
+            #position
+            desired_pose_msg.pose.position.x = float(self.target_pose.position.x)
+            desired_pose_msg.pose.position.y = float(self.target_pose.position.y+0.05)
+            desired_pose_msg.pose.position.z = min(float(self.target_pose.position.z)+0.10, Z_LIMIT)
+            #orientation
+            if not self.doPour:
+                desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
+                desired_pose_msg.pose.orientation.y = np.sqrt(2)/2
+                desired_pose_msg.pose.orientation.z = 0.0
+                desired_pose_msg.pose.orientation.w = np.sqrt(2)/2
+            else:
                 desired_pose_msg.pose.orientation.x = 0.0 # REQUIRES FLOATS
                 desired_pose_msg.pose.orientation.y = 0.0
                 desired_pose_msg.pose.orientation.z = 0.0
                 desired_pose_msg.pose.orientation.w = 1.0
-
-                self.arm_publisher.publish(desired_pose_msg) # Publish pose
-                self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
-
-                time.sleep(4) # Pause to ensure got there
             
+            """ Move arm ABOVE using publisher """
+            self.arm_publisher.publish(desired_pose_msg) # Publish pose
+            self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
+            time.sleep(4)
+
+            """ POUR """
+            if self.doPour:
                 # Straighten out
                 """ 60 degrees """
                 # desired_pose_msg.pose.orientation.w = np.sqrt(3)*0.5
@@ -244,7 +299,28 @@ class ManipulationNode(Node):
                 self.arm_publisher.publish(desired_pose_msg) # Publish pose
                 self.get_logger().info(f"Published pose of: {desired_pose_msg.pose.position.x}, {desired_pose_msg.pose.position.y}, {desired_pose_msg.pose.position.z}")
 
-                time.sleep(2) # Pause to ensure got there
+                time.sleep(4) # Pause to ensure got there
+
+            """ Go back home so arm doesn't crap out"""
+            # First, drop item
+            if self.use_sim:
+                pass
+                # Gripper doesn't work in sim
+                self.get_logger().info(f"Got to position! Would do gripper, but we are in SIM")
+            else:
+                self.get_logger().info(f"Found object! Opening gripper...")
+                gripper_msg = Bool()
+                gripper_msg.data = True # OPEN gripper
+                self.gripper_publisher.publish(gripper_msg)
+            
+            time.sleep(2) # Pause to ensure
+
+            # Now go home
+            self.get_logger().info("Going home...")
+            self.sleep_publisher.publish(Bool(data=True))
+
+            time.sleep(2) # Pause to ensure
+
 
 
 

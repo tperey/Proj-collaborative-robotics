@@ -58,7 +58,7 @@ class Sable_Driver(Node):
         """
         Drive state callback for controlling the LoCoBot base.
         """
-        self.get_logger().info(f"Received drive state message: {msg.data}")
+        #self.get_logger().info(f"Received drive state message: {msg.data}")
 
         # Define velocity values based on the command
         if msg.data == "go":

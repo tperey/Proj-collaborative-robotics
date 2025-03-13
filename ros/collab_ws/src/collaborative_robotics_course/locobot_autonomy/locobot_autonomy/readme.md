@@ -26,8 +26,6 @@ OR
     * For sim —> ros2 run locobot_autonomy camera_with_sim.py
     * For Real Robot -> _same_ (expected, though not tested. Assumes relevant topics won't change. If they do, change use_sim in code to false)
 
-**Launch file to come???**
-
 NOTES ON CODE CHANGES
 * Several syntactical to interface with ROS2 msg objects correctly
 * Testing showed images are indexed with origin at top left, positive x right, positive y down. So image[y,x]!
